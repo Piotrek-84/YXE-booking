@@ -7,10 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "lint:biome": "biome check .",
+    "lint": "biome lint .",
+    "lint:biome": "biome lint .",
+    "lint:next": "NEXT_DISABLE_ESLINT_PROMPT=1 next lint",
     "format": "biome format --write .",
-    "check": "npm run lint:biome && npm run lint",
+    "check": "biome check .",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
@@ -26,6 +27,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.5",
     "@types/node": "^20.11.30",
     "@types/react": "^18.2.73",
     "@types/react-dom": "^18.2.23",
