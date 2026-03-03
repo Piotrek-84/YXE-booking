@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -18,6 +19,19 @@ import { sendBookingConfirmationNotifications } from "../../../lib/notifications
 import { getBlockedCustomerCapabilities } from "../../../lib/blocked-customer-capabilities";
 
 const blockedCustomerClient = (prisma as any).blockedCustomer;
+
+function normalizeClientDeviceId(value?: string) {
+  if (!value) return "";
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalized)) return "";
+  return normalized;
+}
+
+function hashClientDeviceId(value?: string) {
+  const normalized = normalizeClientDeviceId(value);
+  if (!normalized) return null;
+  return createHash("sha256").update(normalized).digest("hex");
+}
 
 const statusValues = [
   "REQUESTED",
@@ -67,6 +81,7 @@ const createSchema = z.object({
     color: z.string().optional(),
     plate: z.string().optional()
   }),
+  clientDeviceId: z.string().min(16).max(128).optional(),
   notes: z.string().optional()
 });
 
@@ -186,6 +201,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
   }
   const normalizedEmail = data.customer.email.trim().toLowerCase();
+  const { hasDeviceBlocking } = await getBlockedCustomerCapabilities();
+  const blockedDeviceClient = hasDeviceBlocking ? (prisma as any).blockedDevice : null;
+  const clientDeviceHash = hasDeviceBlocking ? hashClientDeviceId(data.clientDeviceId) : null;
+
+  if (blockedDeviceClient && clientDeviceHash) {
+    const blockedDevice = await blockedDeviceClient.findFirst({
+      where: {
+        deviceHash: clientDeviceHash,
+        isActive: true
+      }
+    });
+    if (blockedDevice) {
+      return NextResponse.json(
+        {
+          error:
+            "Online booking is unavailable for this device. Please contact the shop directly."
+        },
+        { status: 403 }
+      );
+    }
+  }
 
   if (blockedCustomerClient) {
     const candidates = await blockedCustomerClient.findMany({
@@ -295,6 +331,7 @@ export async function POST(request: Request) {
             tokenExpiresAt,
             updatedBy: actor,
             status: "CONFIRMED",
+            ...(clientDeviceHash ? { clientDeviceHash } : {}),
             bookingStartDateTime: bookingStartDate,
             startAt: bookingStartDate,
             endAt,

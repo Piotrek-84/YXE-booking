@@ -76,6 +76,58 @@ function buildBlockedWhere(scope: "active" | "history" | "all", search?: string,
   };
 }
 
+async function syncBlockedDevicesForContact(params: {
+  phone: string;
+  email: string | null;
+  blockedCustomerId: string;
+  reason: string | null;
+  actor: string;
+  hasDeviceBlocking: boolean;
+}) {
+  if (!params.hasDeviceBlocking) return;
+  const blockedDeviceClient = (prisma as any).blockedDevice;
+  if (!blockedDeviceClient) return;
+
+  const contactWhere = [
+    { customerPhone: params.phone },
+    ...(params.email ? [{ customerEmail: params.email }] : [])
+  ];
+
+  const bookings = await prisma.booking.findMany({
+    where: { OR: contactWhere },
+    select: { clientDeviceHash: true },
+    take: 500
+  });
+
+  const hashes = Array.from(
+    new Set(
+      bookings
+        .map((item) => item.clientDeviceHash)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+    )
+  );
+
+  for (const deviceHash of hashes) {
+    await blockedDeviceClient.upsert({
+      where: { deviceHash },
+      update: {
+        isActive: true,
+        reason: params.reason || "Blocked customer device",
+        blockedBy: params.actor,
+        linkedBlockedCustomerId: params.blockedCustomerId,
+        unblockedAt: null,
+        unblockedBy: null
+      },
+      create: {
+        deviceHash,
+        reason: params.reason || "Blocked customer device",
+        blockedBy: params.actor,
+        linkedBlockedCustomerId: params.blockedCustomerId
+      }
+    });
+  }
+}
+
 export async function GET(request: Request) {
   if (!(await isAdminAuthorized())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -97,7 +149,7 @@ export async function GET(request: Request) {
   const search = parsed.data.search?.trim();
   const scope = parsed.data.scope || "all";
   const category = parsed.data.category || "blocked";
-  const { hasMaintenanceFields } = await getBlockedCustomerCapabilities();
+  const { hasMaintenanceFields, hasDeviceBlocking } = await getBlockedCustomerCapabilities();
 
   if (category === "maintenance" && !hasMaintenanceFields) {
     return NextResponse.json({ blocked: [] });
@@ -151,7 +203,7 @@ export async function POST(request: Request) {
   const email = parsed.data.email?.trim().toLowerCase() || null;
   const actor = process.env.ADMIN_EMAIL || "admin";
   const markAsPotentialMaintenance = parsed.data.isPotentialMaintenance === true;
-  const { hasMaintenanceFields } = await getBlockedCustomerCapabilities();
+  const { hasMaintenanceFields, hasDeviceBlocking } = await getBlockedCustomerCapabilities();
 
   if (markAsPotentialMaintenance && !hasMaintenanceFields) {
     return NextResponse.json(
@@ -195,6 +247,17 @@ export async function POST(request: Request) {
       data: nextData,
       select: hasMaintenanceFields ? maintenanceSelect : legacySelect
     });
+
+    if (!markAsPotentialMaintenance) {
+      await syncBlockedDevicesForContact({
+        phone,
+        email,
+        blockedCustomerId: existing.id,
+        reason: parsed.data.reason || existing.reason || null,
+        actor,
+        hasDeviceBlocking
+      });
+    }
     return NextResponse.json({ blockedCustomer });
   }
 
@@ -222,6 +285,17 @@ export async function POST(request: Request) {
     select: hasMaintenanceFields ? maintenanceSelect : legacySelect
   });
 
+  if (!markAsPotentialMaintenance) {
+    await syncBlockedDevicesForContact({
+      phone,
+      email,
+      blockedCustomerId: blockedCustomer.id,
+      reason: parsed.data.reason || null,
+      actor,
+      hasDeviceBlocking
+    });
+  }
+
   return NextResponse.json({ blockedCustomer });
 }
 
@@ -242,6 +316,8 @@ export async function DELETE(request: Request) {
   const id = searchParams.get("id");
   const type = searchParams.get("type");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+  const { hasDeviceBlocking } = await getBlockedCustomerCapabilities();
 
   if (type === "maintenance") {
     const { hasMaintenanceFields } = await getBlockedCustomerCapabilities();
@@ -271,5 +347,19 @@ export async function DELETE(request: Request) {
       unblockedBy: process.env.ADMIN_EMAIL || "admin"
     }
   });
+
+  if (hasDeviceBlocking) {
+    const blockedDeviceClient = (prisma as any).blockedDevice;
+    if (blockedDeviceClient) {
+      await blockedDeviceClient.updateMany({
+        where: { linkedBlockedCustomerId: id, isActive: true },
+        data: {
+          isActive: false,
+          unblockedAt: new Date(),
+          unblockedBy: process.env.ADMIN_EMAIL || "admin"
+        }
+      });
+    }
+  }
   return NextResponse.json({ ok: true });
 }

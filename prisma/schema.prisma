@@ -122,6 +122,7 @@ model Booking {
   googleEventId   String?
   squareCustomerId String?
   companyCamProjectId String?
+  clientDeviceHash String?
   requestedDate   DateTime
   requestedWindow String
   status          BookingStatus @default(REQUESTED)
@@ -138,6 +139,8 @@ model Booking {
   addOns   BookingAddOn[]
   audits   BookingAudit[]
   reminders ReminderLog[]
+
+  @@index([clientDeviceHash])
 }
 
 model BookingAddOn {
@@ -310,6 +313,22 @@ model BlockedCustomer {
   @@index([email])
   @@index([isActive])
   @@index([isPotentialMaintenance])
+}
+
+model BlockedDevice {
+  id                      String   @id @default(cuid())
+  deviceHash              String   @unique
+  reason                  String?
+  blockedBy               String?
+  isActive                Boolean  @default(true)
+  linkedBlockedCustomerId String?
+  unblockedAt             DateTime?
+  unblockedBy             String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([linkedBlockedCustomerId])
 }
 
 model SlotBlock {

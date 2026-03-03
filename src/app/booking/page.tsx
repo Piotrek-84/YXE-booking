@@ -120,6 +120,9 @@ type GiftCardCheckState = {
   currency?: string | null;
 };
 
+const CLIENT_DEVICE_STORAGE_KEY = "yxe_booking_device_id";
+const CLIENT_DEVICE_COOKIE = "yxe_booking_device_id";
+
 const initialForm: BookingForm = {
   city: "YXE",
   vehicleSize: "",
@@ -214,6 +217,57 @@ function normalizeGiftCardNumber(value: string) {
   return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
 
+function normalizeClientDeviceId(value: string) {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(normalized)) return "";
+  return normalized;
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") return "";
+  const prefix = `${name}=`;
+  const raw = document.cookie
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix));
+  return raw ? decodeURIComponent(raw.slice(prefix.length)) : "";
+}
+
+function persistClientDeviceId(deviceId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CLIENT_DEVICE_STORAGE_KEY, deviceId);
+  } catch {}
+  // biome-ignore lint/suspicious/noDocumentCookie: persistent first-party device token is required for blocklist checks.
+  document.cookie = `${CLIENT_DEVICE_COOKIE}=${encodeURIComponent(deviceId)}; Max-Age=63072000; Path=/; SameSite=Lax`;
+}
+
+function getOrCreateClientDeviceId() {
+  if (typeof window === "undefined") return "";
+
+  const fromStorage = (() => {
+    try {
+      return window.localStorage.getItem(CLIENT_DEVICE_STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
+  })();
+  const fromCookie = readCookie(CLIENT_DEVICE_COOKIE);
+  const existing = normalizeClientDeviceId(fromStorage || fromCookie);
+  if (existing) {
+    persistClientDeviceId(existing);
+    return existing;
+  }
+
+  const generated =
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 18)}`;
+  const normalized = normalizeClientDeviceId(generated) || generated.slice(0, 32);
+  persistClientDeviceId(normalized);
+  return normalized;
+}
+
 function stubCreateBooking(data: BookingForm) {
   return new Promise<{ id: string }>((resolve) => {
     setTimeout(() => {
@@ -234,6 +288,7 @@ export default function BookingPage() {
   const [slotsError, setSlotsError] = useState("");
   const [selectedSlotDate, setSelectedSlotDate] = useState("");
   const [giftCardCheck, setGiftCardCheck] = useState<GiftCardCheckState>({ status: "idle" });
+  const [clientDeviceId, setClientDeviceId] = useState("");
   const router = useRouter();
 
 const filteredPackages = useMemo(() => {
@@ -309,6 +364,10 @@ const filteredAddOns = useMemo(() => {
       };
     });
   };
+
+  useEffect(() => {
+    setClientDeviceId(getOrCreateClientDeviceId());
+  }, []);
 
   useEffect(() => {
     if (step !== 3 || !selectedPackage?.id) return;
@@ -475,6 +534,7 @@ const filteredAddOns = useMemo(() => {
         trim: form.vehicleTrim,
         color: form.vehicleColor
       },
+      clientDeviceId: clientDeviceId || undefined,
       intakeAnswers,
       notes: form.notes
     };
