@@ -37,6 +37,23 @@ function getTimezone(locationCode: string) {
   return timezoneByLocation[locationCode] || "America/Regina";
 }
 
+async function resolveAvailabilityLocation(locationCode: string) {
+  const existing = await prisma.location.findUnique({ where: { code: locationCode } });
+  if (existing) return existing;
+
+  if (locationCode !== "YXE" && locationCode !== "YYC") return null;
+
+  // Bootstrap canonical locations for fresh databases so availability works before first booking write.
+  return prisma.location.upsert({
+    where: { code: locationCode },
+    update: {},
+    create: {
+      code: locationCode,
+      name: locationCode === "YXE" ? "Saskatoon (YXE)" : "Calgary (YYC)"
+    }
+  });
+}
+
 function getDateParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -109,7 +126,7 @@ export async function getAvailableSlots(params: {
   const from = params.from ?? now;
   const to = params.to ?? addMinutes(new Date(from), SLOT_WINDOW_DAYS * 24 * 60);
 
-  const location = await prisma.location.findUnique({ where: { code: params.locationCode } });
+  const location = await resolveAvailabilityLocation(params.locationCode);
   if (!location) return [] as AvailableSlot[];
 
   const service =
