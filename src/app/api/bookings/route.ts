@@ -10,6 +10,12 @@ import {
   validateBookingRequest,
 } from "../../../lib/availability-engine";
 import { getBlockedCustomerCapabilities } from "../../../lib/blocked-customer-capabilities";
+import { getDiscountCodeCapabilities } from "../../../lib/discount-code-capabilities";
+import {
+  computeDiscountAmountCents,
+  isDiscountCodeFormatValid,
+  normalizeDiscountCode,
+} from "../../../lib/discount-codes";
 import { sendBookingCreatedEmails } from "../../../lib/email";
 import { getAppBaseUrl } from "../../../lib/feature-flags";
 import { sendBookingEventToZapier } from "../../../lib/integrations/zapier";
@@ -82,6 +88,7 @@ const createSchema = z.object({
     plate: z.string().optional(),
   }),
   clientDeviceId: z.string().min(16).max(128).optional(),
+  discountCode: z.string().min(3).max(32).optional(),
   notes: z.string().optional(),
 });
 
@@ -269,6 +276,92 @@ export async function POST(request: Request) {
   }
 
   const addOnIds = await resolveAddOnIds(data, location.id);
+  const selectedAddOns = await prisma.addOn.findMany({
+    where: {
+      id: { in: addOnIds },
+      locationId: location.id,
+    },
+    select: {
+      id: true,
+      priceCents: true,
+    },
+  });
+  const subtotalCents =
+    service.basePriceCents + selectedAddOns.reduce((sum, item) => sum + item.priceCents, 0);
+
+  const normalizedDiscountCode = data.discountCode ? normalizeDiscountCode(data.discountCode) : "";
+  let appliedDiscount: null | {
+    id: string;
+    code: string;
+    discountType: "PERCENTAGE" | "FIXED_CENTS";
+    percentOff: number | null;
+    fixedAmountCents: number | null;
+    amountOffCents: number;
+    finalTotalCents: number;
+  } = null;
+
+  if (normalizedDiscountCode) {
+    if (!isDiscountCodeFormatValid(normalizedDiscountCode)) {
+      return NextResponse.json({ error: "Discount code format is invalid." }, { status: 400 });
+    }
+
+    const { hasDiscountCodes } = await getDiscountCodeCapabilities();
+    if (!hasDiscountCodes) {
+      return NextResponse.json(
+        { error: "Discount codes are unavailable until migration runs." },
+        { status: 503 }
+      );
+    }
+
+    const discountCode = await prisma.discountCode.findFirst({
+      where: { code: normalizedDiscountCode, isActive: true },
+    });
+
+    if (!discountCode) {
+      return NextResponse.json({ error: "Discount code not found." }, { status: 400 });
+    }
+
+    const now = new Date();
+    if (discountCode.startsAt && discountCode.startsAt > now) {
+      return NextResponse.json({ error: "This discount code is not active yet." }, { status: 400 });
+    }
+    if (discountCode.endsAt && discountCode.endsAt < now) {
+      return NextResponse.json({ error: "This discount code has expired." }, { status: 400 });
+    }
+    if (
+      discountCode.maxRedemptions !== null &&
+      discountCode.redemptionCount >= discountCode.maxRedemptions
+    ) {
+      return NextResponse.json(
+        { error: "This discount code has reached its usage limit." },
+        { status: 400 }
+      );
+    }
+
+    const amountOffCents = computeDiscountAmountCents(subtotalCents, {
+      discountType: discountCode.discountType,
+      percentOff: discountCode.percentOff,
+      fixedAmountCents: discountCode.fixedAmountCents,
+    });
+
+    if (amountOffCents <= 0) {
+      return NextResponse.json(
+        { error: "This discount code does not apply to this booking." },
+        { status: 400 }
+      );
+    }
+
+    appliedDiscount = {
+      id: discountCode.id,
+      code: discountCode.code,
+      discountType: discountCode.discountType,
+      percentOff: discountCode.percentOff,
+      fixedAmountCents: discountCode.fixedAmountCents,
+      amountOffCents,
+      finalTotalCents: Math.max(0, subtotalCents - amountOffCents),
+    };
+  }
+
   const capacity = await getCapacityForLocation(location.id);
 
   const actor = process.env.ADMIN_EMAIL || "system";
@@ -321,6 +414,22 @@ export async function POST(request: Request) {
         const manageToken = createClientManageToken();
         const tokenExpiresAt = getTokenExpiry(30);
         const endAt = new Date(selectedSlot.endAt);
+        const bookingIntakeAnswers = {
+          ...(data.intakeAnswers || {}),
+          ...(appliedDiscount
+            ? {
+                discountCode: {
+                  code: appliedDiscount.code,
+                  discountType: appliedDiscount.discountType,
+                  percentOff: appliedDiscount.percentOff,
+                  fixedAmountCents: appliedDiscount.fixedAmountCents,
+                  amountOffCents: appliedDiscount.amountOffCents,
+                  subtotalCents,
+                  finalTotalCents: appliedDiscount.finalTotalCents,
+                },
+              }
+            : {}),
+        };
 
         const booking = await tx.booking.create({
           data: {
@@ -334,7 +443,7 @@ export async function POST(request: Request) {
             serviceName: service.name,
             durationMinutes: service.durationMinutes,
             bufferMinutes: service.bufferMinutes,
-            intakeAnswers: data.intakeAnswers,
+            intakeAnswers: bookingIntakeAnswers,
             clientManageToken: manageToken,
             tokenExpiresAt,
             updatedBy: actor,
@@ -362,6 +471,13 @@ export async function POST(request: Request) {
             location: true,
           },
         });
+
+        if (appliedDiscount) {
+          await tx.discountCode.update({
+            where: { id: appliedDiscount.id },
+            data: { redemptionCount: { increment: 1 } },
+          });
+        }
 
         await tx.bookingAudit.create({
           data: {
@@ -441,6 +557,21 @@ export async function POST(request: Request) {
   return NextResponse.json({
     id: booking.id,
     status: booking.status,
+    pricing: {
+      subtotalCents,
+      discountCents: appliedDiscount?.amountOffCents || 0,
+      finalTotalCents: appliedDiscount?.finalTotalCents ?? subtotalCents,
+    },
+    appliedDiscount: appliedDiscount
+      ? {
+          code: appliedDiscount.code,
+          discountType: appliedDiscount.discountType,
+          percentOff: appliedDiscount.percentOff,
+          fixedAmountCents: appliedDiscount.fixedAmountCents,
+          amountOffCents: appliedDiscount.amountOffCents,
+          finalTotalCents: appliedDiscount.finalTotalCents,
+        }
+      : null,
     manageUrl: `${getAppBaseUrl()}/manage/${booking.clientManageToken}`,
   });
 }

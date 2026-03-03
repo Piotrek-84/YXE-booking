@@ -13,13 +13,15 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
   const locationLabel = "All locations";
   const title = pathname.startsWith("/admin/bookings")
     ? "Bookings"
-    : pathname.startsWith("/admin/maintenance")
-      ? "Maintenance Clients"
-      : pathname.startsWith("/admin/blocked")
-        ? "Blocked Clients"
-        : pathname === "/admin"
-          ? "Dashboard"
-          : "Admin";
+    : pathname.startsWith("/admin/discount-codes")
+      ? "Discount Codes"
+      : pathname.startsWith("/admin/maintenance")
+        ? "Maintenance Clients"
+        : pathname.startsWith("/admin/blocked")
+          ? "Blocked Clients"
+          : pathname === "/admin"
+            ? "Dashboard"
+            : "Admin";
 
   const navItems = [
     { href: "/admin", label: "Dashboard", active: pathname === "/admin" },
@@ -32,6 +34,11 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
       href: "/admin/blocked",
       label: "Blocked Clients",
       active: pathname.startsWith("/admin/blocked"),
+    },
+    {
+      href: "/admin/discount-codes",
+      label: "Discount Codes",
+      active: pathname.startsWith("/admin/discount-codes"),
     },
     {
       href: "/admin/maintenance",
@@ -79,7 +86,7 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
             </form>
           </header>
 
-          <nav className="grid grid-cols-4 gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2 lg:hidden">
+          <nav className="grid grid-cols-5 gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2 lg:hidden">
             {navItems.map((item) => (
               <Link
                 key={item.href}

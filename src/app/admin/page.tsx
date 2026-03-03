@@ -1,6 +1,6 @@
 export default function AdminPage() {
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+    <section className="grid gap-4 md:grid-cols-3">
       <a
         href="/admin/bookings"
         className="rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-600"
@@ -14,6 +14,16 @@ export default function AdminPage() {
         <p className="mt-2 text-lg font-semibold">CSV export</p>
         <p className="mt-2 text-sm text-slate-400">Available from the bookings page.</p>
       </div>
+      <a
+        href="/admin/discount-codes"
+        className="rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-600"
+      >
+        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Discounts</p>
+        <p className="mt-2 text-lg font-semibold">Manage discount codes</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Create time-bound promo codes for the booking flow.
+        </p>
+      </a>
     </section>
   );
 }

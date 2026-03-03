@@ -13,7 +13,12 @@ type BookingPayload = {
   fullName: string;
   phone: string;
   email: string;
+  subtotalCents?: number;
+  discountCents?: number;
   totalCents: number;
+  appliedDiscount?: {
+    code?: string;
+  } | null;
 };
 
 const cityLabel: Record<string, string> = {
@@ -49,7 +54,6 @@ export default function ConfirmationPage() {
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Confirmation</p>
           <h1 className="text-3xl font-semibold text-slate-900">Your appointment is confirmed.</h1>
-          <p className="text-slate-600">We may text you if we need access details.</p>
         </header>
 
         {!payload && (
@@ -90,6 +94,23 @@ export default function ConfirmationPage() {
                 {payload.email && <p>{payload.email}</p>}
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Subtotal</p>
+                <p className="text-base font-semibold text-slate-900">
+                  {formatPrice(payload.subtotalCents ?? payload.totalCents)}
+                </p>
+              </div>
+              {(payload.discountCents || 0) > 0 && (
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">
+                    Discount
+                    {payload.appliedDiscount?.code ? ` (${payload.appliedDiscount.code})` : ""}
+                  </p>
+                  <p className="text-base font-semibold text-emerald-700">
+                    -{formatPrice(payload.discountCents || 0)}
+                  </p>
+                </div>
+              )}
+              <div className="mt-2 flex items-center justify-between">
                 <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
                   Estimated Total
                 </p>

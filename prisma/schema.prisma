@@ -18,6 +18,11 @@ enum BookingStatus {
   NO_SHOW
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED_CENTS
+}
+
 model Location {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -347,4 +352,24 @@ model SlotBlock {
 
   @@unique([locationId, slotKey, slotLine])
   @@index([locationId, startAt])
+}
+
+model DiscountCode {
+  id               String       @id @default(cuid())
+  code             String       @unique
+  description      String?
+  discountType     DiscountType
+  percentOff       Int?
+  fixedAmountCents Int?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  maxRedemptions   Int?
+  redemptionCount  Int          @default(0)
+  isActive         Boolean      @default(true)
+  createdBy        String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([isActive, code])
+  @@index([startsAt, endsAt])
 }

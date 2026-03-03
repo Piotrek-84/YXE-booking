@@ -10,6 +10,11 @@ import {
   formatPrice,
   packages,
 } from "../../lib/booking-data";
+import {
+  computeDiscountAmountCents,
+  isDiscountCodeFormatValid,
+  normalizeDiscountCode,
+} from "../../lib/discount-codes";
 import { normalizePhone } from "../../lib/phone";
 
 const steps = ["Vehicle Size", "Category", "Add-ons", "Date & Time", "Customer & Review"];
@@ -84,6 +89,7 @@ type BookingForm = {
   vehicleTrim: string;
   vehicleColor: string;
   giftCardNumber: string;
+  discountCode: string;
   notes: string;
   submitError: string;
 };
@@ -99,6 +105,7 @@ type FieldErrors = Partial<
     | "vehicleTrim"
     | "vehicleColor"
     | "giftCardNumber"
+    | "discountCode"
     | "notes",
     string
   >
@@ -112,6 +119,16 @@ type GiftCardCheckState = {
   last4?: string;
   balanceAmount?: number | null;
   currency?: string | null;
+};
+
+type DiscountCheckState = {
+  status: "idle" | "checking" | "valid" | "invalid" | "error";
+  message?: string;
+  normalizedCode?: string;
+  discountType?: "PERCENTAGE" | "FIXED_CENTS";
+  percentOff?: number | null;
+  fixedAmountCents?: number | null;
+  description?: string | null;
 };
 
 const CLIENT_DEVICE_STORAGE_KEY = "yxe_booking_device_id";
@@ -134,6 +151,7 @@ const initialForm: BookingForm = {
   vehicleTrim: "",
   vehicleColor: "",
   giftCardNumber: "",
+  discountCode: "",
   notes: "",
   submitError: "",
 };
@@ -227,6 +245,13 @@ function validateCustomerFields(form: BookingForm) {
     }
   }
 
+  if (form.discountCode.trim().length > 0) {
+    const normalizedCode = normalizeDiscountCode(form.discountCode);
+    if (!isDiscountCodeFormatValid(normalizedCode)) {
+      errors.discountCode = "Enter a valid discount code.";
+    }
+  }
+
   if (form.notes.trim().length > 500) {
     errors.notes = "Notes must be 500 characters or less.";
   }
@@ -309,6 +334,7 @@ export default function BookingPage() {
   const [slotsError, setSlotsError] = useState("");
   const [selectedSlotDate, setSelectedSlotDate] = useState("");
   const [giftCardCheck, setGiftCardCheck] = useState<GiftCardCheckState>({ status: "idle" });
+  const [discountCheck, setDiscountCheck] = useState<DiscountCheckState>({ status: "idle" });
   const [clientDeviceId, setClientDeviceId] = useState("");
   const router = useRouter();
 
@@ -335,11 +361,33 @@ export default function BookingPage() {
   const selectedPackage = packages.find((item) => item.id === form.packageId);
   const selectedAddOns = addOns.filter((item) => form.addOnIds.includes(item.id));
 
-  const totalCents = useMemo(() => {
+  const subtotalCents = useMemo(() => {
     const pkg = selectedPackage?.priceCents ?? 0;
     const addOnsTotal = selectedAddOns.reduce((sum, item) => sum + item.priceCents, 0);
     return pkg + addOnsTotal;
   }, [selectedPackage, selectedAddOns]);
+
+  const discountCents = useMemo(() => {
+    const normalizedCode = normalizeDiscountCode(form.discountCode);
+    if (
+      discountCheck.status !== "valid" ||
+      !discountCheck.normalizedCode ||
+      normalizedCode !== discountCheck.normalizedCode ||
+      !discountCheck.discountType
+    ) {
+      return 0;
+    }
+    return computeDiscountAmountCents(subtotalCents, {
+      discountType: discountCheck.discountType,
+      percentOff: discountCheck.percentOff,
+      fixedAmountCents: discountCheck.fixedAmountCents,
+    });
+  }, [discountCheck, form.discountCode, subtotalCents]);
+
+  const totalCents = useMemo(
+    () => Math.max(0, subtotalCents - discountCents),
+    [subtotalCents, discountCents]
+  );
 
   const estimatedDurationMins = useMemo(() => {
     return selectedPackage?.durationMins ?? 0;
@@ -481,6 +529,71 @@ export default function BookingPage() {
     }
   };
 
+  const verifyDiscountCode = async () => {
+    const normalizedCode = normalizeDiscountCode(form.discountCode);
+    if (!normalizedCode) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        discountCode: "Enter a discount code to apply.",
+      }));
+      setDiscountCheck({ status: "idle" });
+      return;
+    }
+
+    if (!isDiscountCodeFormatValid(normalizedCode)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        discountCode: "Enter a valid discount code.",
+      }));
+      setDiscountCheck({ status: "invalid", message: "Discount code format is invalid." });
+      return;
+    }
+
+    setFieldErrors((prev) => ({ ...prev, discountCode: undefined }));
+    setDiscountCheck({ status: "checking" });
+
+    try {
+      const response = await fetch("/api/discount-codes/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: normalizedCode,
+          subtotalCents,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.ok) {
+        const message = data?.error || "Discount verification is unavailable right now.";
+        setDiscountCheck({ status: "error", message });
+        return;
+      }
+
+      if (!data.valid) {
+        setDiscountCheck({
+          status: "invalid",
+          message: data?.message || "Discount code is not valid.",
+        });
+        return;
+      }
+
+      setDiscountCheck({
+        status: "valid",
+        message: data?.message || "Discount code applied.",
+        normalizedCode,
+        discountType: data?.discountType,
+        percentOff: typeof data?.percentOff === "number" ? data.percentOff : null,
+        fixedAmountCents: typeof data?.fixedAmountCents === "number" ? data.fixedAmountCents : null,
+        description: data?.description || null,
+      });
+    } catch {
+      setDiscountCheck({
+        status: "error",
+        message: "Discount verification failed. Please try again.",
+      });
+    }
+  };
+
   const handleSubmit = async () => {
     const normalizedFullName = normalizeFullName(form.fullName);
     const normalizedEmail = normalizeEmail(form.email);
@@ -493,12 +606,19 @@ export default function BookingPage() {
     const normalizedPhone = normalizePhone(form.phone);
     const trimmedEmail = normalizedEmail.trim();
     const normalizedGiftCard = normalizeGiftCardNumber(form.giftCardNumber);
+    const normalizedDiscountCode = normalizeDiscountCode(form.discountCode);
 
     if (
       normalizedGiftCard &&
       (giftCardCheck.status !== "valid" || giftCardCheck.normalizedGan !== normalizedGiftCard)
     ) {
       nextErrors.giftCardNumber = "Please verify your gift card number before confirming.";
+    }
+    if (
+      normalizedDiscountCode &&
+      (discountCheck.status !== "valid" || discountCheck.normalizedCode !== normalizedDiscountCode)
+    ) {
+      nextErrors.discountCode = "Please apply a valid discount code before confirming.";
     }
 
     setFieldErrors(nextErrors);
@@ -541,8 +661,21 @@ export default function BookingPage() {
                   : null,
               currency: giftCardCheck.currency || null,
             },
+            ...(normalizedDiscountCode && discountCheck.status === "valid"
+              ? {
+                  discountCode: {
+                    code: normalizedDiscountCode,
+                  },
+                }
+              : {}),
           }
-        : undefined;
+        : normalizedDiscountCode && discountCheck.status === "valid"
+          ? {
+              discountCode: {
+                code: normalizedDiscountCode,
+              },
+            }
+          : undefined;
 
     const payload = {
       locationCode: form.city,
@@ -569,6 +702,7 @@ export default function BookingPage() {
         color: form.vehicleColor,
       },
       clientDeviceId: clientDeviceId || undefined,
+      discountCode: normalizedDiscountCode || undefined,
       intakeAnswers,
       notes: form.notes,
     };
@@ -595,7 +729,10 @@ export default function BookingPage() {
     const draft = {
       ...form,
       bookingId: result?.id ?? "",
-      totalCents,
+      subtotalCents: result?.pricing?.subtotalCents ?? subtotalCents,
+      discountCents: result?.pricing?.discountCents ?? discountCents,
+      totalCents: result?.pricing?.finalTotalCents ?? totalCents,
+      appliedDiscount: result?.appliedDiscount ?? null,
       estimatedDurationMins,
     };
     sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
@@ -634,7 +771,17 @@ export default function BookingPage() {
         </div>
       )}
       <div className="border-t border-slate-200 pt-3">
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Total</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Subtotal</p>
+          <p className="font-semibold text-slate-900">{formatPrice(subtotalCents)}</p>
+        </div>
+        {discountCents > 0 && (
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">Discount</p>
+            <p className="font-semibold text-emerald-700">-{formatPrice(discountCents)}</p>
+          </div>
+        )}
+        <p className="mt-3 text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Total</p>
         <p className="text-lg font-semibold text-slate-900">{formatPrice(totalCents)}</p>
         <p className="mt-2 text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Time</p>
         <p className="font-semibold text-slate-900">{formatDuration(estimatedDurationMins)}</p>
@@ -769,9 +916,11 @@ export default function BookingPage() {
                       }}
                       disabled={!form.category}
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-semibold">{pkg.name}</p>
-                        <p className="text-lg font-semibold">{formatPrice(pkg.priceCents)}</p>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="text-base font-semibold sm:text-lg">{pkg.name}</p>
+                        <p className="shrink-0 whitespace-nowrap text-base font-semibold sm:text-lg">
+                          {formatPrice(pkg.priceCents)}
+                        </p>
                       </div>
                       <p className="mt-1 text-sm opacity-80">{pkg.description}</p>
                       <p className="mt-2 text-xs uppercase tracking-[0.18em] opacity-60">
@@ -803,9 +952,11 @@ export default function BookingPage() {
                       }`}
                       onClick={() => toggleAddOn(addon.id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-semibold">{addon.name}</p>
-                        <p className="text-lg font-semibold">{formatPrice(addon.priceCents)}</p>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <p className="text-base font-semibold sm:text-lg">{addon.name}</p>
+                        <p className="shrink-0 whitespace-nowrap text-base font-semibold sm:text-lg">
+                          {formatPrice(addon.priceCents)}
+                        </p>
                       </div>
                       <p className="mt-1 text-sm opacity-80">{addon.description}</p>
                       <p className="mt-2 text-xs uppercase tracking-[0.18em] opacity-60">
@@ -840,7 +991,6 @@ export default function BookingPage() {
               <p className="text-sm text-slate-600">
                 Select an available time slot to confirm your appointment.
               </p>
-              <p className="text-sm text-slate-600">Only showing the next 3 weeks.</p>
               {slotsError && <p className="text-sm text-rose-500">{slotsError}</p>}
               {slotsLoading && (
                 <div className="grid gap-3">
@@ -1204,6 +1354,56 @@ export default function BookingPage() {
                 </div>
                 <div className="grid gap-3">
                   <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                    Discount Code (optional)
+                  </label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={form.discountCode}
+                      onChange={(event) => {
+                        setForm((prev) => ({ ...prev, discountCode: event.target.value }));
+                        setFieldErrors((prev) => ({ ...prev, discountCode: undefined }));
+                        setDiscountCheck({ status: "idle" });
+                      }}
+                      onBlur={() =>
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          discountCode: validateCustomerFields(form).discountCode,
+                        }))
+                      }
+                      className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+                        fieldErrors.discountCode ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      }`}
+                      placeholder="Enter promo code"
+                      aria-invalid={Boolean(fieldErrors.discountCode)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void verifyDiscountCode()}
+                      disabled={discountCheck.status === "checking"}
+                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                    >
+                      {discountCheck.status === "checking" ? "Applying..." : "Apply"}
+                    </button>
+                  </div>
+                  {fieldErrors.discountCode && (
+                    <p className="text-sm text-rose-600">{fieldErrors.discountCode}</p>
+                  )}
+                  {discountCheck.status === "valid" && (
+                    <p className="text-sm text-emerald-700">
+                      {discountCheck.message || "Discount code applied."}
+                      {discountCheck.description ? ` · ${discountCheck.description}` : ""}
+                      {discountCents > 0 ? ` · -${formatPrice(discountCents)}` : ""}
+                    </p>
+                  )}
+                  {discountCheck.status === "invalid" && (
+                    <p className="text-sm text-rose-600">{discountCheck.message}</p>
+                  )}
+                  {discountCheck.status === "error" && (
+                    <p className="text-sm text-rose-600">{discountCheck.message}</p>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
                     Notes (optional)
                   </label>
                   <textarea
@@ -1261,6 +1461,17 @@ export default function BookingPage() {
                     </p>
                   </div>
                 )}
+                {discountCents > 0 && discountCheck.status === "valid" && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                      Discount Code
+                    </p>
+                    <p className="text-base font-semibold">
+                      {discountCheck.normalizedCode || normalizeDiscountCode(form.discountCode)} · -
+                      {formatPrice(discountCents)}
+                    </p>
+                  </div>
+                )}
                 <div className="mt-4 space-y-2">
                   <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Vehicle</p>
                   <p className="text-base font-semibold">
@@ -1281,6 +1492,20 @@ export default function BookingPage() {
                   </div>
                 )}
                 <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Subtotal</p>
+                  <p className="text-base font-semibold text-slate-900">
+                    {formatPrice(subtotalCents)}
+                  </p>
+                </div>
+                {discountCents > 0 && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">Discount</p>
+                    <p className="text-base font-semibold text-emerald-700">
+                      -{formatPrice(discountCents)}
+                    </p>
+                  </div>
+                )}
+                <div className="mt-2 flex items-center justify-between">
                   <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
                     Estimated Total
                   </p>
