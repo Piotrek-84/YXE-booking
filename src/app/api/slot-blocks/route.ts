@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../lib/prisma";
 import { isAdminAuthorized } from "../../../lib/admin-auth";
 import { makeSlotKey } from "../../../lib/availability-engine";
+import { prisma } from "../../../lib/prisma";
 
 const slotBlockClient = (prisma as any).slotBlock;
 
 const listSchema = z.object({
   location: z.string().min(2),
   dateFrom: z.string().min(8),
-  dateTo: z.string().min(8)
+  dateTo: z.string().min(8),
 });
 
 const createSchema = z.object({
@@ -17,11 +17,11 @@ const createSchema = z.object({
   startAt: z.string().min(8),
   endAt: z.string().min(8).optional(),
   slotLine: z.number().int().min(1).max(4),
-  reason: z.string().max(250).optional()
+  reason: z.string().max(250).optional(),
 });
 
 const removeSchema = z.object({
-  id: z.string().min(3)
+  id: z.string().min(3),
 });
 
 export async function GET(request: Request) {
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const parsed = listSchema.safeParse({
     location: searchParams.get("location"),
     dateFrom: searchParams.get("dateFrom"),
-    dateTo: searchParams.get("dateTo")
+    dateTo: searchParams.get("dateTo"),
   });
 
   if (!parsed.success) {
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   }
 
   const location = await prisma.location.findUnique({
-    where: { code: parsed.data.location }
+    where: { code: parsed.data.location },
   });
   if (!location) return NextResponse.json({ blocks: [] });
 
@@ -58,9 +58,9 @@ export async function GET(request: Request) {
   const blocks = await slotBlockClient.findMany({
     where: {
       locationId: location.id,
-      startAt: { gte: start, lte: end }
+      startAt: { gte: start, lte: end },
     },
-    orderBy: [{ startAt: "asc" }, { slotLine: "asc" }]
+    orderBy: [{ startAt: "asc" }, { slotLine: "asc" }],
   });
 
   return NextResponse.json({ blocks });
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   }
 
   const location = await prisma.location.findUnique({
-    where: { code: parsed.data.locationCode }
+    where: { code: parsed.data.locationCode },
   });
   if (!location) return NextResponse.json({ error: "Location not found" }, { status: 404 });
 
@@ -86,7 +86,9 @@ export async function POST(request: Request) {
   if (Number.isNaN(startAt.getTime())) {
     return NextResponse.json({ error: "Invalid startAt" }, { status: 400 });
   }
-  const endAt = parsed.data.endAt ? new Date(parsed.data.endAt) : new Date(startAt.getTime() + 60 * 60000);
+  const endAt = parsed.data.endAt
+    ? new Date(parsed.data.endAt)
+    : new Date(startAt.getTime() + 60 * 60000);
   if (Number.isNaN(endAt.getTime())) {
     return NextResponse.json({ error: "Invalid endAt" }, { status: 400 });
   }
@@ -95,7 +97,10 @@ export async function POST(request: Request) {
   const actor = process.env.ADMIN_EMAIL || "admin";
 
   if (!slotBlockClient) {
-    return NextResponse.json({ error: "Slot blocks unavailable until migration runs" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Slot blocks unavailable until migration runs" },
+      { status: 503 }
+    );
   }
 
   const block = await slotBlockClient.upsert({
@@ -103,14 +108,14 @@ export async function POST(request: Request) {
       locationId_slotKey_slotLine: {
         locationId: location.id,
         slotKey,
-        slotLine: parsed.data.slotLine
-      }
+        slotLine: parsed.data.slotLine,
+      },
     },
     update: {
       reason: parsed.data.reason || null,
       blockedBy: actor,
       startAt,
-      endAt
+      endAt,
     },
     create: {
       locationId: location.id,
@@ -119,8 +124,8 @@ export async function POST(request: Request) {
       reason: parsed.data.reason || null,
       blockedBy: actor,
       startAt,
-      endAt
-    }
+      endAt,
+    },
   });
 
   return NextResponse.json({ block });
@@ -133,18 +138,21 @@ export async function DELETE(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const parsed = removeSchema.safeParse({
-    id: searchParams.get("id")
+    id: searchParams.get("id"),
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
   if (!slotBlockClient) {
-    return NextResponse.json({ error: "Slot blocks unavailable until migration runs" }, { status: 503 });
+    return NextResponse.json(
+      { error: "Slot blocks unavailable until migration runs" },
+      { status: 503 }
+    );
   }
 
   await slotBlockClient.delete({
-    where: { id: parsed.data.id }
+    where: { id: parsed.data.id },
   });
 
   return NextResponse.json({ ok: true });

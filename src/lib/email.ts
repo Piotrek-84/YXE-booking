@@ -25,7 +25,7 @@ export async function sendEmail(payload: EmailPayload) {
   if (forcedRecipient) {
     console.info("Email test mode enabled: overriding recipient", {
       originalTo: payload.to,
-      forcedTo: forcedRecipient
+      forcedTo: forcedRecipient,
     });
   }
 
@@ -33,15 +33,15 @@ export async function sendEmail(payload: EmailPayload) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       from: fromAddress,
       to,
       subject: payload.subject,
       html: payload.html,
-      text: payload.text
-    })
+      text: payload.text,
+    }),
   });
 
   if (!response.ok) {
@@ -50,7 +50,7 @@ export async function sendEmail(payload: EmailPayload) {
       status: response.status,
       message,
       from: fromAddress,
-      keyLength: apiKey.length
+      keyLength: apiKey.length,
     });
     throw new Error(message);
   }
@@ -80,7 +80,7 @@ export async function sendBookingCreatedEmails(context: BookingEmailContext) {
     `Date & Time: ${context.requestedDate} (${context.requestedWindow})`,
     `Customer: ${context.customerName}`,
     `Phone: ${context.customerPhone}`,
-    context.customerEmail ? `Email: ${context.customerEmail}` : "Email: not provided"
+    context.customerEmail ? `Email: ${context.customerEmail}` : "Email: not provided",
   ];
 
   if (adminEmail) {
@@ -88,7 +88,7 @@ export async function sendBookingCreatedEmails(context: BookingEmailContext) {
       to: adminEmail,
       subject: `New confirmed booking · ${context.location}`,
       html: lines.map((line) => `<p>${line}</p>`).join(""),
-      text: lines.join("\n")
+      text: lines.join("\n"),
     });
   }
 
@@ -125,7 +125,7 @@ export async function sendBookingStatusEmail(context: BookingStatusContext) {
       `Your booking status has been updated to ${context.status.replaceAll("_", " ")}.`,
       `Booking ID: ${context.bookingId}`,
       `Service: ${context.serviceName}`,
-      `Date & Time: ${context.requestedDate} (${context.requestedWindow})`
-    ].join("\n")
+      `Date & Time: ${context.requestedDate} (${context.requestedWindow})`,
+    ].join("\n"),
   });
 }

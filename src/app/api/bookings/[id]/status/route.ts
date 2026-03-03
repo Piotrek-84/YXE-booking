@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../../lib/prisma";
 import { sendBookingStatusEmail } from "../../../../../lib/email";
 import { sendBookingEventToZapier } from "../../../../../lib/integrations/zapier";
 import { sendBookingConfirmationNotifications } from "../../../../../lib/notifications";
+import { prisma } from "../../../../../lib/prisma";
 
 const statusSchema = z.object({
   status: z.enum([
@@ -13,14 +13,11 @@ const statusSchema = z.object({
     "IN_PROGRESS",
     "COMPLETED",
     "CANCELED",
-    "NO_SHOW"
-  ])
+    "NO_SHOW",
+  ]),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const body = await request.json().catch(() => null);
   const parsed = statusSchema.safeParse(body);
 
@@ -33,8 +30,8 @@ export async function PATCH(
     include: {
       customer: true,
       service: true,
-      location: true
-    }
+      location: true,
+    },
   });
 
   if (!existing) {
@@ -43,14 +40,14 @@ export async function PATCH(
 
   const booking = await prisma.booking.update({
     where: { id: params.id },
-    data: { status: parsed.data.status as any }
+    data: { status: parsed.data.status as any },
   });
 
   if (parsed.data.status !== existing.status) {
     const requestedDateLabel = existing.requestedDate.toLocaleDateString("en-CA", {
       weekday: "short",
       month: "short",
-      day: "numeric"
+      day: "numeric",
     });
 
     try {
@@ -62,7 +59,7 @@ export async function PATCH(
         requestedWindow: existing.requestedWindow,
         customerName: existing.customer.fullName,
         customerEmail: existing.customer.email,
-        status: parsed.data.status
+        status: parsed.data.status,
       });
     } catch (error) {
       console.error("Status email failed", error);
@@ -73,7 +70,7 @@ export async function PATCH(
         await sendBookingConfirmationNotifications({
           ...existing,
           status: parsed.data.status,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         } as any);
       } catch (error) {
         console.error("Booking confirmed notifications failed", error);
@@ -93,7 +90,7 @@ export async function PATCH(
         await sendBookingEventToZapier(eventType, {
           ...existing,
           status: parsed.data.status,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         } as any);
       }
     } catch (error) {

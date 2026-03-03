@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual, createHash } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "../prisma";
 
 export type BookingZapierEventType =
@@ -67,18 +67,18 @@ function buildEventPayload(eventType: BookingZapierEventType, booking: BookingLi
       requestedWindow: booking.requestedWindow || null,
       location: {
         code: booking.location?.code || null,
-        name: booking.location?.name || null
+        name: booking.location?.name || null,
       },
       service: booking.service?.name || null,
       customer: {
         name: booking.customer?.fullName || null,
         email: booking.customer?.email || null,
-        phone: booking.customer?.phone || null
+        phone: booking.customer?.phone || null,
       },
       vehicle: booking.vehicle || null,
       address: booking.address || null,
-      intakeAnswers: booking.intakeAnswers || null
-    }
+      intakeAnswers: booking.intakeAnswers || null,
+    },
   };
 }
 
@@ -105,8 +105,8 @@ async function writeIntegrationFailureLog(params: {
       attempts: params.attempts,
       error: params.error,
       requestPayload: params.requestPayload,
-      responsePayload: params.responsePayload || null
-    }
+      responsePayload: params.responsePayload || null,
+    },
   });
 }
 
@@ -136,9 +136,9 @@ export async function sendBookingEventToZapier(
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
-          "X-Zapier-Signature": `sha256=${signature}`
+          "X-Zapier-Signature": `sha256=${signature}`,
         },
-        body
+        body,
       });
 
       if (response.ok) {
@@ -163,7 +163,7 @@ export async function sendBookingEventToZapier(
     attempts: 3,
     error: lastError,
     requestPayload: payload,
-    responsePayload: lastResponseBody
+    responsePayload: lastResponseBody,
   });
 }
 
@@ -183,7 +183,7 @@ export async function writeIntegrationInboundLog(params: {
       direction: "INBOUND",
       status: params.status || "RECEIVED",
       attempts: 1,
-      requestPayload: params.payload
-    }
+      requestPayload: params.payload,
+    },
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const statusOptions = [
   "REQUESTED",
@@ -10,7 +10,7 @@ const statusOptions = [
   "IN_PROGRESS",
   "COMPLETED",
   "CANCELED",
-  "NO_SHOW"
+  "NO_SHOW",
 ] as const;
 
 type BookingStatus = (typeof statusOptions)[number];
@@ -130,7 +130,7 @@ function formatDate(dateValue: string) {
   return date.toLocaleDateString("en-CA", {
     weekday: "short",
     month: "short",
-    day: "numeric"
+    day: "numeric",
   });
 }
 
@@ -139,24 +139,24 @@ function formatDateTime(dateValue: string) {
   if (Number.isNaN(date.getTime())) return dateValue;
   return `${date.toLocaleDateString("en-CA", {
     month: "short",
-    day: "numeric"
+    day: "numeric",
   })} ${date.toLocaleTimeString("en-CA", {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
   })}`;
 }
 
 function formatCurrency(cents: number) {
   return (cents / 100).toLocaleString("en-CA", {
     style: "currency",
-    currency: "CAD"
+    currency: "CAD",
   });
 }
 
 function formatTimeLabel(date: Date) {
   return date.toLocaleTimeString("en-CA", {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
@@ -216,7 +216,7 @@ function toCsv(bookings: BookingListItem[]) {
     "email",
     "vehicle",
     "service",
-    "updated"
+    "updated",
   ];
   const rows = bookings.map((booking) => [
     booking.id,
@@ -229,15 +229,11 @@ function toCsv(bookings: BookingListItem[]) {
     booking.customer.email ?? "",
     `${booking.vehicle.year ?? ""} ${booking.vehicle.make} ${booking.vehicle.model}`.trim(),
     booking.service.name,
-    booking.updatedAt
+    booking.updatedAt,
   ]);
 
   return [header, ...rows]
-    .map((row) =>
-      row
-        .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
-        .join(",")
-    )
+    .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(","))
     .join("\n");
 }
 
@@ -263,7 +259,7 @@ function getAuditChanges(details: unknown) {
       return {
         field,
         from: from === null || from === undefined ? "empty" : String(from),
-        to: to === null || to === undefined ? "empty" : String(to)
+        to: to === null || to === undefined ? "empty" : String(to),
       };
     })
     .filter((item): item is { field: string; from: string; to: string } => item !== null);
@@ -289,7 +285,7 @@ export default function AdminBookingsPage() {
     page: 1,
     pageSize: 50,
     total: 0,
-    totalPages: 1
+    totalPages: 1,
   });
   const [fetchState, setFetchState] = useState<"loading" | "ready" | "error">("loading");
   const [fetchError, setFetchError] = useState("");
@@ -351,7 +347,9 @@ export default function AdminBookingsPage() {
       const qPageSize = Number(params.get("pageSize") ?? "50");
       const qCalendarModeParam = params.get("calendarMode");
       const qCalendarMode =
-        qCalendarModeParam === "day" || qCalendarModeParam === "week" || qCalendarModeParam === "month"
+        qCalendarModeParam === "day" ||
+        qCalendarModeParam === "week" ||
+        qCalendarModeParam === "month"
           ? qCalendarModeParam
           : "week";
       const qCalendarDate = params.get("calendarDate");
@@ -430,7 +428,7 @@ export default function AdminBookingsPage() {
     calendarMode,
     calendarCursor,
     pathname,
-    router
+    router,
   ]);
 
   const loadBookings = useCallback(
@@ -445,7 +443,7 @@ export default function AdminBookingsPage() {
         }
         return {
           from: new Date(anchor.getFullYear(), anchor.getMonth(), 1),
-          to: new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)
+          to: new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0),
         };
       })();
 
@@ -474,7 +472,7 @@ export default function AdminBookingsPage() {
       try {
         const response = await fetch(`/api/bookings?${params.toString()}`, {
           credentials: "include",
-          signal: controller.signal
+          signal: controller.signal,
         });
         statusCode = response.status;
 
@@ -504,11 +502,12 @@ export default function AdminBookingsPage() {
               : view === "calendar"
                 ? 200
                 : pageSize,
-          total: typeof nextPagination?.total === "number" ? nextPagination.total : nextBookings.length,
+          total:
+            typeof nextPagination?.total === "number" ? nextPagination.total : nextBookings.length,
           totalPages:
             typeof nextPagination?.totalPages === "number" && nextPagination.totalPages > 0
               ? nextPagination.totalPages
-              : 1
+              : 1,
         });
         setFetchState("ready");
 
@@ -516,10 +515,10 @@ export default function AdminBookingsPage() {
           const blockParams = new URLSearchParams({
             location,
             dateFrom: formatDateKey(range.from),
-            dateTo: formatDateKey(range.to)
+            dateTo: formatDateKey(range.to),
           });
           const blockResponse = await fetch(`/api/slot-blocks?${blockParams.toString()}`, {
-            credentials: "include"
+            credentials: "include",
           });
           if (blockResponse.ok) {
             const blockData = await blockResponse.json().catch(() => ({}));
@@ -543,7 +542,7 @@ export default function AdminBookingsPage() {
         if (isDev) {
           console.error("[admin/bookings] fetch failed", {
             statusCode,
-            message
+            message,
           });
         }
       } finally {
@@ -562,7 +561,7 @@ export default function AdminBookingsPage() {
       status,
       view,
       calendarMode,
-      calendarCursor
+      calendarCursor,
     ]
   );
 
@@ -580,7 +579,7 @@ export default function AdminBookingsPage() {
     const controller = new AbortController();
     fetch(`/api/admin/revenue-loss?month=${encodeURIComponent(metricsMonth)}`, {
       credentials: "include",
-      signal: controller.signal
+      signal: controller.signal,
     })
       .then(async (res) => {
         if (!res.ok) return null;
@@ -643,7 +642,7 @@ export default function AdminBookingsPage() {
         setDrawerForm({
           status: booking.status as BookingStatus,
           adminNotes: booking.adminNotes ?? "",
-          dateTime: toInputDateTime(booking.bookingStartDateTime || booking.requestedDate)
+          dateTime: toInputDateTime(booking.bookingStartDateTime || booking.requestedDate),
         });
       })
       .catch((error: unknown) => {
@@ -699,22 +698,46 @@ export default function AdminBookingsPage() {
     );
   }, [bookings, calendarDays]);
 
-  const daySlots = useMemo(
-    () => [
-      "09:00",
-      "11:00",
-      "13:30",
-      "15:30"
-    ],
-    []
-  );
+  const daySlots = useMemo(() => ["09:00", "11:00", "13:30", "15:30"], []);
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
-    if (location) chips.push({ key: "location", label: `Location: ${location}`, clear: () => { setLocation(""); setPage(1); } });
-    if (status) chips.push({ key: "status", label: `Status: ${status.replaceAll("_", " ")}`, clear: () => { setStatus(""); setPage(1); } });
-    if (date) chips.push({ key: "date", label: `Date: ${date}`, clear: () => { setDate(""); setPage(1); } });
-    if (search.trim()) chips.push({ key: "search", label: `Search: ${search.trim()}`, clear: () => { setSearch(""); setPage(1); } });
+    if (location)
+      chips.push({
+        key: "location",
+        label: `Location: ${location}`,
+        clear: () => {
+          setLocation("");
+          setPage(1);
+        },
+      });
+    if (status)
+      chips.push({
+        key: "status",
+        label: `Status: ${status.replaceAll("_", " ")}`,
+        clear: () => {
+          setStatus("");
+          setPage(1);
+        },
+      });
+    if (date)
+      chips.push({
+        key: "date",
+        label: `Date: ${date}`,
+        clear: () => {
+          setDate("");
+          setPage(1);
+        },
+      });
+    if (search.trim())
+      chips.push({
+        key: "search",
+        label: `Search: ${search.trim()}`,
+        clear: () => {
+          setSearch("");
+          setPage(1);
+        },
+      });
     return chips;
   }, [date, location, search, status]);
 
@@ -745,7 +768,7 @@ export default function AdminBookingsPage() {
       location,
       status,
       date,
-      search: search.trim()
+      search: search.trim(),
     };
     setSavedViews((prev) => [next, ...prev].slice(0, 12));
     showToast("success", "View saved");
@@ -770,14 +793,16 @@ export default function AdminBookingsPage() {
       params.set("page", String(exportPage));
       params.set("pageSize", String(exportPageSize));
       const response = await fetch(`/api/bookings?${params.toString()}`, {
-        credentials: "include"
+        credentials: "include",
       });
       if (!response.ok) {
         showToast("error", "CSV export failed");
         return;
       }
       const data = await response.json().catch(() => ({}));
-      const pageBookings = Array.isArray(data?.bookings) ? (data.bookings as BookingListItem[]) : [];
+      const pageBookings = Array.isArray(data?.bookings)
+        ? (data.bookings as BookingListItem[])
+        : [];
       allBookings = [...allBookings, ...pageBookings];
       const totalPages =
         typeof data?.pagination?.totalPages === "number" ? data.pagination.totalPages : 1;
@@ -794,7 +819,7 @@ export default function AdminBookingsPage() {
       location ? `loc-${location}` : "",
       status ? `status-${status.toLowerCase()}` : "",
       date ? `date-${date}` : "",
-      search.trim() ? "search" : ""
+      search.trim() ? "search" : "",
     ]
       .filter(Boolean)
       .join("_");
@@ -810,7 +835,10 @@ export default function AdminBookingsPage() {
     if (!confirmed) return;
     setDeleteError("");
     setDeletingId(id);
-    const response = await fetch(`/api/bookings/${id}`, { method: "DELETE", credentials: "include" });
+    const response = await fetch(`/api/bookings/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
     if (!response.ok) {
       setDeleteError("Failed to delete booking. Please try again.");
       setDeletingId(null);
@@ -846,8 +874,8 @@ export default function AdminBookingsPage() {
       credentials: "include",
       body: JSON.stringify({
         bookingIds: selectedBookingIds,
-        status: bulkStatus
-      })
+        status: bulkStatus,
+      }),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -886,8 +914,8 @@ export default function AdminBookingsPage() {
         locationCode: location,
         startAt: startAtIso,
         slotLine,
-        reason
-      })
+        reason,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -901,7 +929,7 @@ export default function AdminBookingsPage() {
   const unblockSlotLine = async (blockId: string) => {
     const response = await fetch(`/api/slot-blocks?id=${encodeURIComponent(blockId)}`, {
       method: "DELETE",
-      credentials: "include"
+      credentials: "include",
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -917,7 +945,8 @@ export default function AdminBookingsPage() {
       showToast("error", "Pick YXE or YYC first");
       return;
     }
-    const reason = window.prompt(`Reason for blocking line #${slotLine} for the whole day:`) || undefined;
+    const reason =
+      window.prompt(`Reason for blocking line #${slotLine} for the whole day:`) || undefined;
     const results = await Promise.all(
       daySlots.map(async (time) => {
         const [hours, minutes] = time.split(":").map(Number);
@@ -931,8 +960,8 @@ export default function AdminBookingsPage() {
             locationCode: location,
             startAt: startAt.toISOString(),
             slotLine,
-            reason
-          })
+            reason,
+          }),
         });
         return response.ok;
       })
@@ -966,8 +995,8 @@ export default function AdminBookingsPage() {
               locationCode: location,
               startAt: startAt.toISOString(),
               slotLine,
-              reason
-            })
+              reason,
+            }),
           }).then((res) => res.ok)
         );
       }
@@ -991,7 +1020,7 @@ export default function AdminBookingsPage() {
       dayBlocks.map((block) =>
         fetch(`/api/slot-blocks?id=${encodeURIComponent(block.id)}`, {
           method: "DELETE",
-          credentials: "include"
+          credentials: "include",
         }).then((res) => res.ok)
       )
     );
@@ -1004,13 +1033,15 @@ export default function AdminBookingsPage() {
   };
 
   const unblockWholeDay = async () => {
-    const dayBlocks = slotBlocks.filter((block) => sameDay(new Date(block.startAt), calendarCursor));
+    const dayBlocks = slotBlocks.filter((block) =>
+      sameDay(new Date(block.startAt), calendarCursor)
+    );
     if (!dayBlocks.length) return;
     const results = await Promise.all(
       dayBlocks.map((block) =>
         fetch(`/api/slot-blocks?id=${encodeURIComponent(block.id)}`, {
           method: "DELETE",
-          credentials: "include"
+          credentials: "include",
         }).then((res) => res.ok)
       )
     );
@@ -1040,8 +1071,8 @@ export default function AdminBookingsPage() {
         phone: drawerBooking.customer.phone,
         email: drawerBooking.customer.email || "",
         reason,
-        clientFacingNote
-      })
+        clientFacingNote,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -1057,7 +1088,7 @@ export default function AdminBookingsPage() {
     if (!blockedId) return;
     const response = await fetch(`/api/blocked-customers?id=${encodeURIComponent(blockedId)}`, {
       method: "DELETE",
-      credentials: "include"
+      credentials: "include",
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -1085,8 +1116,8 @@ export default function AdminBookingsPage() {
         phone: drawerBooking.customer.phone,
         email: drawerBooking.customer.email || "",
         isPotentialMaintenance: true,
-        maintenanceReason
-      })
+        maintenanceReason,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -1109,7 +1140,7 @@ export default function AdminBookingsPage() {
       `/api/blocked-customers?id=${encodeURIComponent(blockedId)}&type=maintenance`,
       {
         method: "DELETE",
-        credentials: "include"
+        credentials: "include",
       }
     );
     const data = await response.json().catch(() => ({}));
@@ -1149,7 +1180,7 @@ export default function AdminBookingsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ status: nextStatus })
+      body: JSON.stringify({ status: nextStatus }),
     });
 
     if (!response.ok) {
@@ -1167,7 +1198,7 @@ export default function AdminBookingsPage() {
           ? {
               ...item,
               status: nextStatus,
-              updatedAt: updated?.updatedAt ?? item.updatedAt
+              updatedAt: updated?.updatedAt ?? item.updatedAt,
             }
           : item
       )
@@ -1190,8 +1221,8 @@ export default function AdminBookingsPage() {
           phone: bookingItem.customer.phone,
           email: bookingItem.customer.email || "",
           reason: "Automatic block after no-show",
-          clientFacingNote
-        })
+          clientFacingNote,
+        }),
       });
     }
 
@@ -1243,7 +1274,7 @@ export default function AdminBookingsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -1263,10 +1294,14 @@ export default function AdminBookingsPage() {
       setDrawerForm({
         status: updatedBooking.status as BookingStatus,
         adminNotes: updatedBooking.adminNotes ?? "",
-        dateTime: toInputDateTime(updatedBooking.bookingStartDateTime || updatedBooking.requestedDate)
+        dateTime: toInputDateTime(
+          updatedBooking.bookingStartDateTime || updatedBooking.requestedDate
+        ),
       });
 
-      setBookings((prev) => prev.map((item) => (item.id === updatedBooking.id ? { ...item, ...updatedBooking } : item)));
+      setBookings((prev) =>
+        prev.map((item) => (item.id === updatedBooking.id ? { ...item, ...updatedBooking } : item))
+      );
     }
 
     if (drawerForm.status === "NO_SHOW" && noShowClientNote) {
@@ -1279,8 +1314,8 @@ export default function AdminBookingsPage() {
           phone: drawerBooking.customer.phone,
           email: drawerBooking.customer.email || "",
           reason: "Automatic block after no-show",
-          clientFacingNote: noShowClientNote
-        })
+          clientFacingNote: noShowClientNote,
+        }),
       });
     }
 
@@ -1298,7 +1333,7 @@ export default function AdminBookingsPage() {
               {[
                 { label: "All", value: "" },
                 { label: "YXE", value: "YXE" },
-                { label: "YYC", value: "YYC" }
+                { label: "YYC", value: "YYC" },
               ].map((option) => (
                 <button
                   key={option.label}
@@ -1423,7 +1458,7 @@ export default function AdminBookingsPage() {
                 location: "YXE",
                 status: "CONFIRMED",
                 date: today,
-                search: ""
+                search: "",
               })
             }
             className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300"
@@ -1438,7 +1473,7 @@ export default function AdminBookingsPage() {
                 location: "",
                 status: "",
                 date: today,
-                search: ""
+                search: "",
               })
             }
             className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300"
@@ -1453,7 +1488,7 @@ export default function AdminBookingsPage() {
                 location: "YXE",
                 status: "IN_PROGRESS",
                 date: "",
-                search: ""
+                search: "",
               })
             }
             className="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-300"
@@ -1467,7 +1502,10 @@ export default function AdminBookingsPage() {
             Save current
           </button>
           {savedViews.map((savedView) => (
-            <span key={savedView.id} className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950">
+            <span
+              key={savedView.id}
+              className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950"
+            >
               <button
                 onClick={() => applySavedView(savedView)}
                 className="px-3 py-1 text-xs text-slate-300"
@@ -1513,7 +1551,8 @@ export default function AdminBookingsPage() {
           {lostRevenue && (
             <>
               <p className="text-sm text-slate-300">
-                No-shows: <span className="font-semibold text-orange-300">{lostRevenue.noShowCount}</span>
+                No-shows:{" "}
+                <span className="font-semibold text-orange-300">{lostRevenue.noShowCount}</span>
               </p>
               <p className="text-sm text-slate-300">
                 No-show revenue loss:{" "}
@@ -1595,7 +1634,10 @@ export default function AdminBookingsPage() {
       {loading && view === "calendar" && (
         <section className="grid gap-3 md:grid-cols-7">
           {Array.from({ length: 7 }).map((_, index) => (
-            <div key={index} className="h-44 animate-pulse rounded-2xl border border-slate-800 bg-slate-900" />
+            <div
+              key={index}
+              className="h-44 animate-pulse rounded-2xl border border-slate-800 bg-slate-900"
+            />
           ))}
         </section>
       )}
@@ -1747,16 +1789,24 @@ export default function AdminBookingsPage() {
                   className="w-full text-left"
                   aria-label={`Open booking ${booking.id}`}
                 >
-                  <p className="text-sm text-slate-400">{formatDate(booking.requestedDate)} · {booking.requestedWindow}</p>
+                  <p className="text-sm text-slate-400">
+                    {formatDate(booking.requestedDate)} · {booking.requestedWindow}
+                  </p>
                   <p className="mt-1 text-lg font-semibold">{booking.customer.fullName}</p>
                   {booking.blockedCustomer?.isActive && (
                     <p className="text-xs font-semibold text-rose-300">⛔ Blocked client</p>
                   )}
                   {booking.blockedCustomer?.isPotentialMaintenance && (
-                    <p className="text-xs font-semibold text-amber-300">Potential maintenance client</p>
+                    <p className="text-xs font-semibold text-amber-300">
+                      Potential maintenance client
+                    </p>
                   )}
-                  <p className="text-sm text-slate-400">{booking.service.name} · {booking.location.code}</p>
-                  <p className="text-sm text-slate-500">Updated {formatDateTime(booking.updatedAt)}</p>
+                  <p className="text-sm text-slate-400">
+                    {booking.service.name} · {booking.location.code}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Updated {formatDateTime(booking.updatedAt)}
+                  </p>
                 </button>
 
                 <div className="mt-3 grid gap-2">
@@ -1797,8 +1847,7 @@ export default function AdminBookingsPage() {
               <span className="font-semibold text-slate-100">
                 {Math.min(pagination.page * pagination.pageSize, pagination.total)}
               </span>{" "}
-              of{" "}
-              <span className="font-semibold text-slate-100">{pagination.total}</span>
+              of <span className="font-semibold text-slate-100">{pagination.total}</span>
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -1853,7 +1902,10 @@ export default function AdminBookingsPage() {
               <button
                 onClick={() =>
                   setCalendarCursor((current) =>
-                    addDays(current, calendarMode === "day" ? -1 : calendarMode === "week" ? -7 : -30)
+                    addDays(
+                      current,
+                      calendarMode === "day" ? -1 : calendarMode === "week" ? -7 : -30
+                    )
                   )
                 }
                 className="rounded-2xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-100"
@@ -1890,7 +1942,7 @@ export default function AdminBookingsPage() {
                   {calendarCursor.toLocaleDateString("en-CA", {
                     weekday: "long",
                     month: "short",
-                    day: "numeric"
+                    day: "numeric",
                   })}
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -1932,17 +1984,16 @@ export default function AdminBookingsPage() {
                   const slotKey = `${location}:${dayStart.toISOString().slice(0, 16)}`;
                   const slotBookings = bookings
                     .filter((booking) => {
-                      const startAt = new Date(booking.bookingStartDateTime || booking.requestedDate);
+                      const startAt = new Date(
+                        booking.bookingStartDateTime || booking.requestedDate
+                      );
                       return (
                         sameDay(startAt, calendarCursor) &&
                         startAt.getHours() === hours &&
                         startAt.getMinutes() === minutes
                       );
                     })
-                    .sort(
-                      (a, b) =>
-                        (a.slotSequence ?? 999) - (b.slotSequence ?? 999)
-                    );
+                    .sort((a, b) => (a.slotSequence ?? 999) - (b.slotSequence ?? 999));
                   const blockByLine = new Map(
                     slotBlocks
                       .filter((block) => location && block.slotKey === slotKey)
@@ -1952,7 +2003,10 @@ export default function AdminBookingsPage() {
                   return (
                     <div key={time} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
                       <p className="mb-2 text-sm font-semibold text-slate-100">
-                        {dayStart.toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" })}
+                        {dayStart.toLocaleTimeString("en-CA", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
                       </p>
                       <div className="grid gap-2 md:grid-cols-4">
                         {Array.from({ length: 4 }, (_, index) => {
@@ -2005,7 +2059,10 @@ export default function AdminBookingsPage() {
                           }
 
                           return (
-                            <div key={`open-${line}`} className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400">
+                            <div
+                              key={`open-${line}`}
+                              className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400"
+                            >
                               <p>#{line} Open</p>
                               <button
                                 disabled={location !== "YXE" && location !== "YYC"}
@@ -2207,8 +2264,12 @@ export default function AdminBookingsPage() {
                           {getAuditChanges(audit.details).length > 0 && (
                             <div className="mt-2 space-y-1">
                               {getAuditChanges(audit.details).map((change) => (
-                                <p key={`${audit.id}-${change.field}`} className="text-xs text-slate-300">
-                                  <span className="text-slate-500">{change.field}:</span> {change.from} → {change.to}
+                                <p
+                                  key={`${audit.id}-${change.field}`}
+                                  className="text-xs text-slate-300"
+                                >
+                                  <span className="text-slate-500">{change.field}:</span>{" "}
+                                  {change.from} → {change.to}
                                 </p>
                               ))}
                             </div>
@@ -2291,7 +2352,9 @@ export default function AdminBookingsPage() {
                             value={drawerForm.status}
                             onChange={(event) =>
                               setDrawerForm((prev) =>
-                                prev ? { ...prev, status: event.target.value as BookingStatus } : prev
+                                prev
+                                  ? { ...prev, status: event.target.value as BookingStatus }
+                                  : prev
                               )
                             }
                             className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
@@ -2346,22 +2409,41 @@ export default function AdminBookingsPage() {
 
                     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
                       <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Booking</p>
-                      <p className="mt-2"><span className="text-slate-500">Service:</span> {drawerBooking.service.name}</p>
-                      <p><span className="text-slate-500">Location:</span> {drawerBooking.location.name}</p>
+                      <p className="mt-2">
+                        <span className="text-slate-500">Service:</span>{" "}
+                        {drawerBooking.service.name}
+                      </p>
                       <p>
-                        <span className="text-slate-500">Vehicle:</span> {drawerBooking.vehicle.year ?? ""} {drawerBooking.vehicle.make} {drawerBooking.vehicle.model}
+                        <span className="text-slate-500">Location:</span>{" "}
+                        {drawerBooking.location.name}
+                      </p>
+                      <p>
+                        <span className="text-slate-500">Vehicle:</span>{" "}
+                        {drawerBooking.vehicle.year ?? ""} {drawerBooking.vehicle.make}{" "}
+                        {drawerBooking.vehicle.model}
                       </p>
                       {drawerBooking.vehicle.size && (
-                        <p><span className="text-slate-500">Size:</span> {drawerBooking.vehicle.size.replaceAll("_", " ")}</p>
+                        <p>
+                          <span className="text-slate-500">Size:</span>{" "}
+                          {drawerBooking.vehicle.size.replaceAll("_", " ")}
+                        </p>
                       )}
-                      <p><span className="text-slate-500">Requested:</span> {formatDate(drawerBooking.requestedDate)} · {drawerBooking.requestedWindow}</p>
+                      <p>
+                        <span className="text-slate-500">Requested:</span>{" "}
+                        {formatDate(drawerBooking.requestedDate)} · {drawerBooking.requestedWindow}
+                      </p>
                       {drawerBooking.customerNotes && (
-                        <p className="mt-2"><span className="text-slate-500">Customer notes:</span> {drawerBooking.customerNotes}</p>
+                        <p className="mt-2">
+                          <span className="text-slate-500">Customer notes:</span>{" "}
+                          {drawerBooking.customerNotes}
+                        </p>
                       )}
                     </section>
 
                     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
-                      <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Booking history</p>
+                      <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                        Booking history
+                      </p>
                       <div className="mt-2 grid gap-1">
                         <p>
                           <span className="text-slate-500">Total visits:</span>{" "}
@@ -2391,7 +2473,8 @@ export default function AdminBookingsPage() {
                               {historyItem.serviceName || "Service"}
                             </p>
                             <p className="text-slate-400">
-                              {historyItem.locationName || "—"} · {historyItem.status.replaceAll("_", " ")}
+                              {historyItem.locationName || "—"} ·{" "}
+                              {historyItem.status.replaceAll("_", " ")}
                             </p>
                           </article>
                         ))}

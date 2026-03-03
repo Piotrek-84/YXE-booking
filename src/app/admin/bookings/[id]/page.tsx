@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const statusOptions = [
   "REQUESTED",
@@ -10,7 +10,7 @@ const statusOptions = [
   "IN_PROGRESS",
   "COMPLETED",
   "CANCELED",
-  "NO_SHOW"
+  "NO_SHOW",
 ] as const;
 
 type BookingDetail = {
@@ -42,7 +42,7 @@ function formatDate(dateValue: string) {
     weekday: "short",
     month: "short",
     day: "numeric",
-    year: "numeric"
+    year: "numeric",
   });
 }
 
@@ -79,7 +79,7 @@ export default function BookingDetailPage() {
     const response = await fetch(`/api/bookings/${params.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, adminNotes: notes })
+      body: JSON.stringify({ status, adminNotes: notes }),
     });
     if (!response.ok) {
       setSaveError("Could not save changes. Try again.");
@@ -89,9 +89,7 @@ export default function BookingDetailPage() {
     setSaving(false);
   };
 
-  const isDirty =
-    booking &&
-    (status !== booking.status || notes !== (booking.adminNotes ?? ""));
+  const isDirty = booking && (status !== booking.status || notes !== (booking.adminNotes ?? ""));
 
   if (!booking) {
     return (
@@ -181,9 +179,15 @@ export default function BookingDetailPage() {
               Size: {booking.vehicle.size.replaceAll("_", " ")}
             </p>
           )}
-          {booking.vehicle.trim && <p className="text-sm text-slate-400">Trim: {booking.vehicle.trim}</p>}
-          {booking.vehicle.color && <p className="text-sm text-slate-400">Color: {booking.vehicle.color}</p>}
-          {booking.vehicle.plate && <p className="text-sm text-slate-400">Plate: {booking.vehicle.plate}</p>}
+          {booking.vehicle.trim && (
+            <p className="text-sm text-slate-400">Trim: {booking.vehicle.trim}</p>
+          )}
+          {booking.vehicle.color && (
+            <p className="text-sm text-slate-400">Color: {booking.vehicle.color}</p>
+          )}
+          {booking.vehicle.plate && (
+            <p className="text-sm text-slate-400">Plate: {booking.vehicle.plate}</p>
+          )}
         </div>
         {booking.customerNotes && (
           <div>

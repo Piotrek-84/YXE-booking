@@ -15,29 +15,29 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
     ? "Bookings"
     : pathname.startsWith("/admin/maintenance")
       ? "Maintenance Clients"
-    : pathname.startsWith("/admin/blocked")
-      ? "Blocked Clients"
-    : pathname === "/admin"
-      ? "Dashboard"
-      : "Admin";
+      : pathname.startsWith("/admin/blocked")
+        ? "Blocked Clients"
+        : pathname === "/admin"
+          ? "Dashboard"
+          : "Admin";
 
   const navItems = [
     { href: "/admin", label: "Dashboard", active: pathname === "/admin" },
     {
       href: "/admin/bookings",
       label: "Bookings",
-      active: pathname.startsWith("/admin/bookings")
+      active: pathname.startsWith("/admin/bookings"),
     },
     {
       href: "/admin/blocked",
       label: "Blocked Clients",
-      active: pathname.startsWith("/admin/blocked")
+      active: pathname.startsWith("/admin/blocked"),
     },
     {
       href: "/admin/maintenance",
       label: "Maintenance Clients",
-      active: pathname.startsWith("/admin/maintenance")
-    }
+      active: pathname.startsWith("/admin/maintenance"),
+    },
   ];
 
   return (

@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   isValidSignature,
-  writeIntegrationInboundLog
+  writeIntegrationInboundLog,
 } from "../../../../../lib/integrations/zapier";
 import { prisma } from "../../../../../lib/prisma";
 
 const linkSchema = z.object({
   bookingId: z.string().min(3),
   squareCustomerId: z.string().optional(),
-  companyCamProjectId: z.string().optional()
+  companyCamProjectId: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -29,15 +29,15 @@ export async function POST(request: Request) {
     where: { id: parsed.data.bookingId },
     data: {
       squareCustomerId: parsed.data.squareCustomerId || null,
-      companyCamProjectId: parsed.data.companyCamProjectId || null
-    }
+      companyCamProjectId: parsed.data.companyCamProjectId || null,
+    },
   });
 
   await writeIntegrationInboundLog({
     eventType: "BOOKING_LINK_UPDATED",
     bookingId: booking.id,
     payload: parsed.data,
-    status: "LINKED"
+    status: "LINKED",
   });
 
   return NextResponse.json({ ok: true });

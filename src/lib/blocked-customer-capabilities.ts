@@ -4,7 +4,7 @@ const REQUIRED_MAINTENANCE_COLUMNS = [
   "isPotentialMaintenance",
   "maintenanceReason",
   "maintenanceMarkedAt",
-  "maintenanceMarkedBy"
+  "maintenanceMarkedBy",
 ] as const;
 
 type BlockedCustomerCapabilities = {
@@ -40,18 +40,12 @@ export async function getBlockedCustomerCapabilities(): Promise<BlockedCustomerC
       WHERE table_schema = 'public'
         AND table_name = 'BlockedDevice'
         AND column_name IN ('deviceHash', 'isActive')
-    `
+    `,
     ]);
 
-    const maintenancePresent = new Set(
-      maintenanceRows.map((row) => String(row.column_name))
-    );
-    const bookingDevicePresent = new Set(
-      bookingDeviceRows.map((row) => String(row.column_name))
-    );
-    const blockedDevicePresent = new Set(
-      blockedDeviceRows.map((row) => String(row.column_name))
-    );
+    const maintenancePresent = new Set(maintenanceRows.map((row) => String(row.column_name)));
+    const bookingDevicePresent = new Set(bookingDeviceRows.map((row) => String(row.column_name)));
+    const blockedDevicePresent = new Set(blockedDeviceRows.map((row) => String(row.column_name)));
 
     const value = {
       hasMaintenanceFields: REQUIRED_MAINTENANCE_COLUMNS.every((column) =>
@@ -60,7 +54,7 @@ export async function getBlockedCustomerCapabilities(): Promise<BlockedCustomerC
       hasDeviceBlocking:
         bookingDevicePresent.has("clientDeviceHash") &&
         blockedDevicePresent.has("deviceHash") &&
-        blockedDevicePresent.has("isActive")
+        blockedDevicePresent.has("isActive"),
     };
     cached = { value, expiresAt: now + 60_000 };
     return value;

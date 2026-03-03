@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../lib/prisma";
-import { sendBookingStatusEmail } from "../../../../lib/email";
-import { writeBookingAudit } from "../../../../lib/audit";
 import { isAdminAuthorized } from "../../../../lib/admin-auth";
-import { normalizePhone } from "../../../../lib/phone";
+import { writeBookingAudit } from "../../../../lib/audit";
+import { getBlockedCustomerCapabilities } from "../../../../lib/blocked-customer-capabilities";
+import { sendBookingStatusEmail } from "../../../../lib/email";
 import { sendBookingEventToZapier } from "../../../../lib/integrations/zapier";
 import { sendBookingConfirmationNotifications } from "../../../../lib/notifications";
-import { getBlockedCustomerCapabilities } from "../../../../lib/blocked-customer-capabilities";
+import { normalizePhone } from "../../../../lib/phone";
+import { prisma } from "../../../../lib/prisma";
 
 const blockedCustomerClient = (prisma as any).blockedCustomer;
-const historyStatusesForVisits = new Set(["REQUESTED", "CONFIRMED", "SCHEDULED", "IN_PROGRESS", "COMPLETED"]);
+const historyStatusesForVisits = new Set([
+  "REQUESTED",
+  "CONFIRMED",
+  "SCHEDULED",
+  "IN_PROGRESS",
+  "COMPLETED",
+]);
 
 async function getBlockedCustomerForContact(phone: string, email?: string | null) {
   if (!blockedCustomerClient) return null;
@@ -23,23 +29,23 @@ async function getBlockedCustomerForContact(phone: string, email?: string | null
         ? {
             AND: [
               {
-                OR: [{ isActive: true }, { isPotentialMaintenance: true }]
+                OR: [{ isActive: true }, { isPotentialMaintenance: true }],
               },
               {
                 OR: [
                   { phone: { contains: normalizedPhone.slice(-7) } },
-                  ...(normalizedEmail ? [{ email: normalizedEmail }] : [])
-                ]
-              }
-            ]
+                  ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+                ],
+              },
+            ],
           }
         : {
             isActive: true,
             OR: [
               { phone: { contains: normalizedPhone.slice(-7) } },
-              ...(normalizedEmail ? [{ email: normalizedEmail }] : [])
-            ]
-          })
+              ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+            ],
+          }),
     },
     select: hasMaintenanceFields
       ? {
@@ -52,7 +58,7 @@ async function getBlockedCustomerForContact(phone: string, email?: string | null
           isPotentialMaintenance: true,
           maintenanceReason: true,
           maintenanceMarkedAt: true,
-          maintenanceMarkedBy: true
+          maintenanceMarkedBy: true,
         }
       : {
           id: true,
@@ -60,8 +66,8 @@ async function getBlockedCustomerForContact(phone: string, email?: string | null
           email: true,
           reason: true,
           clientFacingNote: true,
-          isActive: true
-        }
+          isActive: true,
+        },
   });
   return (
     candidates.find(
@@ -81,16 +87,16 @@ async function getBookingHistoryForContact(phone: string, email?: string | null)
     where: {
       OR: [
         { customer: { phone: { contains: last7 } } },
-        ...(normalizedEmail ? [{ customer: { email: normalizedEmail } }] : [])
-      ]
+        ...(normalizedEmail ? [{ customer: { email: normalizedEmail } }] : []),
+      ],
     },
     include: {
       service: true,
       location: true,
-      vehicle: true
+      vehicle: true,
     },
     orderBy: { requestedDate: "desc" },
-    take: 200
+    take: 200,
   });
 
   const items = candidates.filter((item) => {
@@ -105,7 +111,9 @@ async function getBookingHistoryForContact(phone: string, email?: string | null)
       new Date((a.bookingStartDateTime || a.requestedDate) as Date).getTime() -
       new Date((b.bookingStartDateTime || b.requestedDate) as Date).getTime()
   );
-  const activeVisits = sortedAsc.filter((item) => historyStatusesForVisits.has(String(item.status)));
+  const activeVisits = sortedAsc.filter((item) =>
+    historyStatusesForVisits.has(String(item.status))
+  );
   const pastVisits = activeVisits.filter(
     (item) => new Date((item.bookingStartDateTime || item.requestedDate) as Date) < now
   );
@@ -126,9 +134,9 @@ async function getBookingHistoryForContact(phone: string, email?: string | null)
       vehicle: {
         year: item.vehicle?.year,
         make: item.vehicle?.make,
-        model: item.vehicle?.model
-      }
-    }))
+        model: item.vehicle?.model,
+      },
+    })),
   };
 }
 
@@ -144,19 +152,16 @@ const patchSchema = z.object({
       "IN_PROGRESS",
       "COMPLETED",
       "CANCELED",
-      "NO_SHOW"
+      "NO_SHOW",
     ])
     .optional(),
   adminNotes: z.string().optional(),
   requestedDate: z.string().min(8).optional(),
   requestedWindow: z.string().min(2).optional(),
-  bookingStartDateTime: z.string().min(8).optional()
+  bookingStartDateTime: z.string().min(8).optional(),
 });
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_request: Request, { params }: { params: { id: string } }) {
   if (!(await isAdminAuthorized())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -171,9 +176,9 @@ export async function GET(
       location: true,
       audits: {
         orderBy: { createdAt: "desc" },
-        take: 50
-      }
-    }
+        take: 50,
+      },
+    },
   });
 
   if (!booking) {
@@ -192,10 +197,7 @@ export async function GET(
   return NextResponse.json({ booking: { ...booking, blockedCustomer, bookingHistory } });
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   if (!(await isAdminAuthorized())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -222,8 +224,8 @@ export async function PATCH(
     include: {
       customer: true,
       service: true,
-      location: true
-    }
+      location: true,
+    },
   });
 
   if (!existing) {
@@ -231,9 +233,7 @@ export async function PATCH(
   }
 
   const nextRequestedDate =
-    parsed.data.requestedDate !== undefined
-      ? new Date(parsed.data.requestedDate)
-      : undefined;
+    parsed.data.requestedDate !== undefined ? new Date(parsed.data.requestedDate) : undefined;
   const nextBookingStart =
     parsed.data.bookingStartDateTime !== undefined
       ? new Date(parsed.data.bookingStartDateTime)
@@ -253,7 +253,7 @@ export async function PATCH(
       adminNotes: parsed.data.adminNotes,
       requestedDate: nextRequestedDate,
       requestedWindow: parsed.data.requestedWindow,
-      bookingStartDateTime: nextBookingStart
+      bookingStartDateTime: nextBookingStart,
     },
     include: {
       customer: true,
@@ -263,9 +263,9 @@ export async function PATCH(
       location: true,
       audits: {
         orderBy: { createdAt: "desc" },
-        take: 50
-      }
-    }
+        take: 50,
+      },
+    },
   });
 
   const actor =
@@ -279,21 +279,27 @@ export async function PATCH(
     changes.push({
       field: "status",
       from: existing.status,
-      to: parsed.data.status
+      to: parsed.data.status,
     });
   }
-  if (parsed.data.adminNotes !== undefined && parsed.data.adminNotes !== (existing.adminNotes ?? "")) {
+  if (
+    parsed.data.adminNotes !== undefined &&
+    parsed.data.adminNotes !== (existing.adminNotes ?? "")
+  ) {
     changes.push({
       field: "adminNotes",
       from: existing.adminNotes ?? null,
-      to: parsed.data.adminNotes || null
+      to: parsed.data.adminNotes || null,
     });
   }
-  if (nextRequestedDate && existing.requestedDate.toISOString() !== nextRequestedDate.toISOString()) {
+  if (
+    nextRequestedDate &&
+    existing.requestedDate.toISOString() !== nextRequestedDate.toISOString()
+  ) {
     changes.push({
       field: "requestedDate",
       from: existing.requestedDate.toISOString(),
-      to: nextRequestedDate.toISOString()
+      to: nextRequestedDate.toISOString(),
     });
   }
   if (
@@ -303,7 +309,7 @@ export async function PATCH(
     changes.push({
       field: "requestedWindow",
       from: existing.requestedWindow,
-      to: parsed.data.requestedWindow
+      to: parsed.data.requestedWindow,
     });
   }
   if (
@@ -313,7 +319,7 @@ export async function PATCH(
     changes.push({
       field: "bookingStartDateTime",
       from: existing.bookingStartDateTime?.toISOString() ?? null,
-      to: nextBookingStart.toISOString()
+      to: nextBookingStart.toISOString(),
     });
   }
 
@@ -323,8 +329,8 @@ export async function PATCH(
       action: "BOOKING_UPDATED",
       actor,
       details: {
-        changes
-      }
+        changes,
+      },
     });
   }
 
@@ -332,7 +338,7 @@ export async function PATCH(
     const requestedDateLabel = existing.requestedDate.toLocaleDateString("en-CA", {
       weekday: "short",
       month: "short",
-      day: "numeric"
+      day: "numeric",
     });
 
     try {
@@ -344,7 +350,7 @@ export async function PATCH(
         requestedWindow: existing.requestedWindow,
         customerName: existing.customer.fullName,
         customerEmail: existing.customer.email,
-        status: parsed.data.status
+        status: parsed.data.status,
       });
     } catch (error) {
       console.error("Status email failed", error);
@@ -390,22 +396,19 @@ export async function PATCH(
     booking: {
       ...booking,
       blockedCustomer,
-      bookingHistory
-    }
+      bookingHistory,
+    },
   });
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   if (!(await isAdminAuthorized())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const existing = await prisma.booking.findUnique({
     where: { id: params.id },
-    select: { id: true }
+    select: { id: true },
   });
 
   if (!existing) {
@@ -414,7 +417,7 @@ export async function DELETE(
 
   await prisma.$transaction([
     prisma.bookingAddOn.deleteMany({ where: { bookingId: params.id } }),
-    prisma.booking.delete({ where: { id: params.id } })
+    prisma.booking.delete({ where: { id: params.id } }),
   ]);
 
   return NextResponse.json({ ok: true });

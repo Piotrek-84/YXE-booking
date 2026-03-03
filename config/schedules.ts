@@ -12,7 +12,7 @@ export const yxeSchedule: DailySchedule[] = [
   { day: 3, slots: ["09:00", "11:00", "13:30", "15:30"] },
   { day: 4, slots: ["09:00", "11:00", "13:30", "15:30"] },
   { day: 5, slots: ["09:00", "11:00", "13:30", "15:30"] },
-  { day: 6, slots: ["09:00", "11:00", "13:30", "15:30"] }
+  { day: 6, slots: ["09:00", "11:00", "13:30", "15:30"] },
 ];
 
 export const SLOT_CAPACITY = 4;

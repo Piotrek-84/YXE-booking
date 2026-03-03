@@ -15,7 +15,7 @@ export default function VehicleSizeCard({
   subtitle,
   imageSrc,
   selected,
-  onSelect
+  onSelect,
 }: VehicleSizeCardProps) {
   return (
     <button
@@ -43,14 +43,14 @@ export default function VehicleSizeCard({
             />
           </div>
         </div>
-        <p className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-slate-300" : "text-slate-400"}`}>
+        <p
+          className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-slate-300" : "text-slate-400"}`}
+        >
           Vehicle size
         </p>
         <p className="text-lg font-semibold">{title}</p>
         {subtitle && (
-          <p className={`text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>
-            {subtitle}
-          </p>
+          <p className={`text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{subtitle}</p>
         )}
       </div>
     </button>

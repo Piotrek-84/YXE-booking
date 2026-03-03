@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   isValidSignature,
-  writeIntegrationInboundLog
+  writeIntegrationInboundLog,
 } from "../../../../../lib/integrations/zapier";
 
 const eventSchema = z.object({
   eventType: z.string().min(3),
   bookingId: z.string().min(3),
-  bookingData: z.record(z.any())
+  bookingData: z.record(z.any()),
 });
 
 export async function POST(request: Request) {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     eventType: parsed.data.eventType,
     bookingId: parsed.data.bookingId,
     payload: parsed.data,
-    status: "RECEIVED"
+    status: "RECEIVED",
   });
 
   return NextResponse.json({ ok: true });

@@ -22,7 +22,12 @@ function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return date.toLocaleString("en-CA", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function AdminBlockedCustomersPage() {
@@ -40,7 +45,7 @@ export default function AdminBlockedCustomersPage() {
     params.set("scope", scope);
     if (search.trim()) params.set("search", search.trim());
     const response = await fetch(`/api/blocked-customers?${params.toString()}`, {
-      credentials: "include"
+      credentials: "include",
     });
     if (!response.ok) {
       setError("Couldn’t load blocked clients.");
@@ -71,7 +76,7 @@ export default function AdminBlockedCustomersPage() {
   const unblock = async (id: string) => {
     const response = await fetch(`/api/blocked-customers?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
-      credentials: "include"
+      credentials: "include",
     });
     if (!response.ok) return;
     await load();
@@ -86,7 +91,9 @@ export default function AdminBlockedCustomersPage() {
               key={value}
               onClick={() => setScope(value)}
               className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase ${
-                scope === value ? "bg-slate-100 text-slate-900" : "border border-slate-700 text-slate-300"
+                scope === value
+                  ? "bg-slate-100 text-slate-900"
+                  : "border border-slate-700 text-slate-300"
               }`}
             >
               {value}
@@ -109,10 +116,14 @@ export default function AdminBlockedCustomersPage() {
 
       {loading && <p className="text-sm text-slate-400">Loading blocked clients…</p>}
       {!loading && error && (
-        <p className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3 text-sm text-rose-200">{error}</p>
+        <p className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3 text-sm text-rose-200">
+          {error}
+        </p>
       )}
       {!loading && !error && filtered.length === 0 && (
-        <p className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-sm text-slate-300">No blocked clients found.</p>
+        <p className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-sm text-slate-300">
+          No blocked clients found.
+        </p>
       )}
 
       {!loading && !error && filtered.length > 0 && (
@@ -133,7 +144,9 @@ export default function AdminBlockedCustomersPage() {
                 <tr key={item.id} className="border-t border-slate-800 text-slate-200">
                   <td className="px-4 py-3">
                     <p className="font-semibold">{item.fullName || "Unknown"}</p>
-                    <p className={`text-xs ${item.isActive ? "text-rose-300" : "text-emerald-300"}`}>
+                    <p
+                      className={`text-xs ${item.isActive ? "text-rose-300" : "text-emerald-300"}`}
+                    >
                       {item.isActive ? "Blocked" : "Unblocked"}
                     </p>
                     {item.isPotentialMaintenance && (

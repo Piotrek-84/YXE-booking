@@ -1,27 +1,22 @@
 import { BookingStatus, Prisma } from "@prisma/client";
-import { prisma } from "./prisma";
 import { SLOT_WINDOW_DAYS, yxeSchedule } from "../../config/schedules";
+import { prisma } from "./prisma";
 
 const slotBlockClient = (prisma as any).slotBlock;
 
-const ACTIVE_STATUSES: BookingStatus[] = [
-  "REQUESTED",
-  "CONFIRMED",
-  "SCHEDULED",
-  "IN_PROGRESS"
-];
+const ACTIVE_STATUSES: BookingStatus[] = ["REQUESTED", "CONFIRMED", "SCHEDULED", "IN_PROGRESS"];
 
 const DEFAULT_INTERVAL_MINUTES = 30;
 const DEFAULT_CAPACITY = 4;
 
 const fallbackSchedulesByLocation: Record<string, { day: number; slots: string[] }[]> = {
   YXE: yxeSchedule,
-  YYC: yxeSchedule
+  YYC: yxeSchedule,
 };
 
 const timezoneByLocation: Record<string, string> = {
   YXE: "America/Regina",
-  YYC: "America/Edmonton"
+  YYC: "America/Edmonton",
 };
 
 export type AvailableSlot = {
@@ -49,8 +44,8 @@ async function resolveAvailabilityLocation(locationCode: string) {
     update: {},
     create: {
       code: locationCode,
-      name: locationCode === "YXE" ? "Saskatoon (YXE)" : "Calgary (YYC)"
-    }
+      name: locationCode === "YXE" ? "Saskatoon (YXE)" : "Calgary (YYC)",
+    },
   });
 }
 
@@ -59,7 +54,7 @@ function getDateParts(date: Date, timeZone: string) {
     timeZone,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
   })
     .formatToParts(date)
     .reduce<Record<string, string>>((acc, part) => {
@@ -70,14 +65,14 @@ function getDateParts(date: Date, timeZone: string) {
   return {
     year: parts.year,
     month: parts.month,
-    day: parts.day
+    day: parts.day,
   };
 }
 
 function getDayOfWeek(date: Date, timeZone: string) {
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone,
-    weekday: "short"
+    weekday: "short",
   }).format(date);
 
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(day);
@@ -86,7 +81,7 @@ function getDayOfWeek(date: Date, timeZone: string) {
 function getTimeZoneOffsetString(timeZone: string, date: Date) {
   const value = new Intl.DateTimeFormat("en-US", {
     timeZone,
-    timeZoneName: "shortOffset"
+    timeZoneName: "shortOffset",
   })
     .formatToParts(date)
     .find((part) => part.type === "timeZoneName")?.value;
@@ -129,16 +124,15 @@ export async function getAvailableSlots(params: {
   const location = await resolveAvailabilityLocation(params.locationCode);
   if (!location) return [] as AvailableSlot[];
 
-  const service =
-    params.serviceId
-      ? await prisma.service.findFirst({
-          where: {
-            id: params.serviceId,
-            locationId: location.id,
-            active: true
-          }
-        })
-      : null;
+  const service = params.serviceId
+    ? await prisma.service.findFirst({
+        where: {
+          id: params.serviceId,
+          locationId: location.id,
+          active: true,
+        },
+      })
+    : null;
 
   const durationMinutes = service?.durationMinutes ?? params.serviceDurationMinutes ?? 60;
   const bufferMinutes = service?.bufferMinutes ?? params.serviceBufferMinutes ?? 0;
@@ -151,28 +145,28 @@ export async function getAvailableSlots(params: {
         locationId: location.id,
         date: {
           gte: new Date(from.toISOString().slice(0, 10)),
-          lte: new Date(to.toISOString().slice(0, 10))
-        }
-      }
+          lte: new Date(to.toISOString().slice(0, 10)),
+        },
+      },
     }),
     prisma.blackoutDate.findMany({
       where: {
         locationId: location.id,
-        OR: [{ startAt: { lte: to }, endAt: { gte: from } }]
-      }
+        OR: [{ startAt: { lte: to }, endAt: { gte: from } }],
+      },
     }),
     slotBlockClient
       ? slotBlockClient.findMany({
           where: {
             locationId: location.id,
-            startAt: { gte: from, lte: to }
+            startAt: { gte: from, lte: to },
           },
           select: {
             slotKey: true,
-            slotLine: true
-          }
+            slotLine: true,
+          },
         })
-      : Promise.resolve([])
+      : Promise.resolve([]),
   ]);
 
   const timeZone = getTimezone(params.locationCode);
@@ -198,7 +192,13 @@ export async function getAvailableSlots(params: {
 
     if (!isBlackout) {
       const override = overrides.find(
-        (item) => getDateParts(item.date, timeZone).year + "-" + getDateParts(item.date, timeZone).month + "-" + getDateParts(item.date, timeZone).day === ymd
+        (item) =>
+          getDateParts(item.date, timeZone).year +
+            "-" +
+            getDateParts(item.date, timeZone).month +
+            "-" +
+            getDateParts(item.date, timeZone).day ===
+          ymd
       );
 
       let openTime: string | null = null;
@@ -217,7 +217,9 @@ export async function getAvailableSlots(params: {
           closeTime = hours.closeTime;
         }
       } else {
-        const fallback = fallbackSchedulesByLocation[params.locationCode]?.find((item) => item.day === dayIndex);
+        const fallback = fallbackSchedulesByLocation[params.locationCode]?.find(
+          (item) => item.day === dayIndex
+        );
         if (fallback?.slots?.length) {
           for (const time of fallback.slots) {
             const startString = toZonedDateTimeString(cursor, time, timeZone);
@@ -232,12 +234,12 @@ export async function getAvailableSlots(params: {
                 weekday: "short",
                 month: "short",
                 day: "numeric",
-                timeZone
+                timeZone,
               })} — ${startAt.toLocaleTimeString("en-CA", {
                 hour: "numeric",
                 minute: "2-digit",
-                timeZone
-              })}`
+                timeZone,
+              })}`,
             });
           }
         }
@@ -263,12 +265,12 @@ export async function getAvailableSlots(params: {
               weekday: "short",
               month: "short",
               day: "numeric",
-              timeZone
+              timeZone,
             })} — ${startAt.toLocaleTimeString("en-CA", {
               hour: "numeric",
               minute: "2-digit",
-              timeZone
-            })}`
+              timeZone,
+            })}`,
           });
         }
       }
@@ -285,9 +287,9 @@ export async function getAvailableSlots(params: {
     where: {
       locationId: location.id,
       status: { in: ACTIVE_STATUSES },
-      slotKey: { in: slotKeys }
+      slotKey: { in: slotKeys },
     },
-    _count: { _all: true }
+    _count: { _all: true },
   });
 
   const counts = new Map<string, number>();
@@ -314,7 +316,7 @@ export async function getAvailableSlots(params: {
         slotKey: slot.slotKey,
         label: slot.label,
         remainingCapacity,
-        isAvailable: remainingCapacity > 0
+        isAvailable: remainingCapacity > 0,
       };
     });
 }
@@ -335,7 +337,7 @@ export async function validateBookingRequest(params: {
     locationCode: params.locationCode,
     serviceId: params.serviceId,
     from: new Date(),
-    to: addMinutes(new Date(), SLOT_WINDOW_DAYS * 24 * 60)
+    to: addMinutes(new Date(), SLOT_WINDOW_DAYS * 24 * 60),
   });
 
   const slot = slots.find((item) => item.startAt === params.startAt.toISOString());
@@ -362,12 +364,16 @@ export async function allocateSlotSequence(params: {
       locationId: params.locationId,
       slotKey: params.slotKey,
       startAt: params.startAt,
-      status: { in: ACTIVE_STATUSES }
+      status: { in: ACTIVE_STATUSES },
     },
-    select: { slotSequence: true }
+    select: { slotSequence: true },
   });
 
-  const used = new Set(activeBookings.map((item) => item.slotSequence).filter((value): value is number => typeof value === "number"));
+  const used = new Set(
+    activeBookings
+      .map((item) => item.slotSequence)
+      .filter((value): value is number => typeof value === "number")
+  );
 
   for (let i = 1; i <= params.maxPerSlot; i += 1) {
     if (!used.has(i)) return i;

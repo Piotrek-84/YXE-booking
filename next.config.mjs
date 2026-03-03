@@ -4,10 +4,10 @@ const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig = {
   reactStrictMode: true,
-  output: "standalone"
+  output: "standalone",
 };
 
 export default withPWA({
   dest: "public",
-  disable: isDev
+  disable: isDev,
 })(nextConfig);

@@ -18,7 +18,7 @@ type BookingPayload = {
 
 const cityLabel: Record<string, string> = {
   YXE: "Saskatoon",
-  YYC: "Calgary"
+  YYC: "Calgary",
 };
 
 const vehicleSizeLabel: Record<string, string> = {
@@ -26,7 +26,7 @@ const vehicleSizeLabel: Record<string, string> = {
   suv: "SUV",
   truck: "Trucks",
   large_suv: "Large SUV",
-  minivan: "Minivan"
+  minivan: "Minivan",
 };
 
 export default function ConfirmationPage() {
@@ -34,8 +34,7 @@ export default function ConfirmationPage() {
   const selectedPackage = payload ? packages.find((item) => item.id === payload.packageId) : null;
   const serviceName = selectedPackage?.name || "";
   const estimatedDurationMins = payload
-    ? (payload.estimatedDurationMins ??
-      (selectedPackage?.durationMins ?? 0))
+    ? (payload.estimatedDurationMins ?? selectedPackage?.durationMins ?? 0)
     : 0;
 
   useEffect(() => {
@@ -50,9 +49,7 @@ export default function ConfirmationPage() {
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Confirmation</p>
           <h1 className="text-3xl font-semibold text-slate-900">Your appointment is confirmed.</h1>
-          <p className="text-slate-600">
-            We may text you if we need access details.
-          </p>
+          <p className="text-slate-600">We may text you if we need access details.</p>
         </header>
 
         {!payload && (
@@ -74,9 +71,7 @@ export default function ConfirmationPage() {
               </div>
               <div className="mt-4 space-y-2">
                 <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Date & Time</p>
-                <p className="text-base font-semibold">
-                  {payload.slotLabel}
-                </p>
+                <p className="text-base font-semibold">{payload.slotLabel}</p>
               </div>
               <div className="mt-4 space-y-2">
                 <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Service</p>
@@ -95,7 +90,9 @@ export default function ConfirmationPage() {
                 {payload.email && <p>{payload.email}</p>}
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
-                <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Total</p>
+                <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  Estimated Total
+                </p>
                 <p className="text-lg font-semibold text-slate-900">
                   {formatPrice(payload.totalCents)}
                 </p>
@@ -109,7 +106,9 @@ export default function ConfirmationPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
-              <p className="text-xs uppercase tracking-[0.15em] text-slate-500">What happens next</p>
+              <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                What happens next
+              </p>
               <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                 <li>Remove personal items</li>
                 <li>Let us know special concerns</li>

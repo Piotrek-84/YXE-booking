@@ -2,21 +2,21 @@ import { Prisma } from "@prisma/client";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { isAdminAuthorized } from "../../../lib/admin-auth";
+import { writeBookingAudit } from "../../../lib/audit";
 import {
   allocateSlotSequence,
   getCapacityForLocation,
-  validateBookingRequest
+  validateBookingRequest,
 } from "../../../lib/availability-engine";
-import { writeBookingAudit } from "../../../lib/audit";
+import { getBlockedCustomerCapabilities } from "../../../lib/blocked-customer-capabilities";
 import { sendBookingCreatedEmails } from "../../../lib/email";
 import { getAppBaseUrl } from "../../../lib/feature-flags";
-import { prisma } from "../../../lib/prisma";
-import { createClientManageToken, getTokenExpiry } from "../../../lib/tokens";
-import { isAdminAuthorized } from "../../../lib/admin-auth";
-import { normalizePhone } from "../../../lib/phone";
 import { sendBookingEventToZapier } from "../../../lib/integrations/zapier";
 import { sendBookingConfirmationNotifications } from "../../../lib/notifications";
-import { getBlockedCustomerCapabilities } from "../../../lib/blocked-customer-capabilities";
+import { normalizePhone } from "../../../lib/phone";
+import { prisma } from "../../../lib/prisma";
+import { createClientManageToken, getTokenExpiry } from "../../../lib/tokens";
 
 const blockedCustomerClient = (prisma as any).blockedCustomer;
 
@@ -40,7 +40,7 @@ const statusValues = [
   "IN_PROGRESS",
   "COMPLETED",
   "CANCELED",
-  "NO_SHOW"
+  "NO_SHOW",
 ] as const;
 
 const createSchema = z.object({
@@ -57,7 +57,7 @@ const createSchema = z.object({
         id: z.string().min(3).optional(),
         name: z.string().min(2),
         priceCents: z.number().int().nonnegative(),
-        durationMins: z.number().int().positive()
+        durationMins: z.number().int().positive(),
       })
     )
     .optional()
@@ -71,7 +71,7 @@ const createSchema = z.object({
   customer: z.object({
     fullName: z.string().min(2),
     phone: z.string().min(7),
-    email: z.string().trim().email()
+    email: z.string().trim().email(),
   }),
   vehicle: z.object({
     year: z.number().int().min(1980).max(2050).optional(),
@@ -79,10 +79,10 @@ const createSchema = z.object({
     model: z.string().min(1),
     trim: z.string().optional(),
     color: z.string().optional(),
-    plate: z.string().optional()
+    plate: z.string().optional(),
   }),
   clientDeviceId: z.string().min(16).max(128).optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
 });
 
 const listSchema = z.object({
@@ -93,7 +93,7 @@ const listSchema = z.object({
   dateTo: z.string().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().positive().optional(),
-  pageSize: z.coerce.number().int().min(1).max(200).optional()
+  pageSize: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 async function resolveLocation(code: string) {
@@ -105,8 +105,8 @@ async function resolveLocation(code: string) {
   return prisma.location.create({
     data: {
       code,
-      name: code === "YXE" ? "Saskatoon (YXE)" : "Calgary (YYC)"
-    }
+      name: code === "YXE" ? "Saskatoon (YXE)" : "Calgary (YYC)",
+    },
   });
 }
 
@@ -115,8 +115,8 @@ async function resolveService(data: z.infer<typeof createSchema>, locationId: st
     where: {
       id: data.serviceId,
       locationId,
-      active: true
-    }
+      active: true,
+    },
   });
 
   if (!service && data.serviceName) {
@@ -124,8 +124,8 @@ async function resolveService(data: z.infer<typeof createSchema>, locationId: st
       where: {
         name: data.serviceName,
         locationId,
-        active: true
-      }
+        active: true,
+      },
     });
   }
 
@@ -138,18 +138,15 @@ async function resolveService(data: z.infer<typeof createSchema>, locationId: st
         basePriceCents: data.servicePriceCents || 0,
         durationMinutes: data.serviceDurationMins || 60,
         bufferMinutes: 0,
-        active: true
-      }
+        active: true,
+      },
     });
   }
 
   return service;
 }
 
-async function resolveAddOnIds(
-  data: z.infer<typeof createSchema>,
-  locationId: string
-) {
+async function resolveAddOnIds(data: z.infer<typeof createSchema>, locationId: string) {
   let addOnIds = data.addOnIds;
 
   if (data.addOnsDetailed.length > 0) {
@@ -157,12 +154,12 @@ async function resolveAddOnIds(
       data.addOnsDetailed.map(async (addon) => {
         if (addon.id) {
           const existing = await prisma.addOn.findFirst({
-            where: { id: addon.id, locationId }
+            where: { id: addon.id, locationId },
           });
           if (existing) return existing;
         }
         const byName = await prisma.addOn.findFirst({
-          where: { name: addon.name, locationId }
+          where: { name: addon.name, locationId },
         });
         if (byName) return byName;
         return prisma.addOn.create({
@@ -172,8 +169,8 @@ async function resolveAddOnIds(
             description: "",
             priceCents: addon.priceCents,
             durationMinutes: addon.durationMins,
-            active: true
-          }
+            active: true,
+          },
         });
       })
     );
@@ -209,14 +206,13 @@ export async function POST(request: Request) {
     const blockedDevice = await blockedDeviceClient.findFirst({
       where: {
         deviceHash: clientDeviceHash,
-        isActive: true
-      }
+        isActive: true,
+      },
     });
     if (blockedDevice) {
       return NextResponse.json(
         {
-          error:
-            "Online booking is unavailable for this device. Please contact the shop directly."
+          error: "Online booking is unavailable for this device. Please contact the shop directly.",
         },
         { status: 403 }
       );
@@ -227,8 +223,8 @@ export async function POST(request: Request) {
     const candidates = await blockedCustomerClient.findMany({
       where: {
         isActive: true,
-        OR: [{ phone: { contains: normalizedPhone.slice(-7) } }, { email: normalizedEmail }]
-      }
+        OR: [{ phone: { contains: normalizedPhone.slice(-7) } }, { email: normalizedEmail }],
+      },
     });
     const blocked =
       candidates.find(
@@ -241,7 +237,7 @@ export async function POST(request: Request) {
         {
           error: blocked.clientFacingNote
             ? `Online booking is unavailable for this account. ${blocked.clientFacingNote}`
-            : "Online booking is unavailable for this account. Please contact the shop directly."
+            : "Online booking is unavailable for this account. Please contact the shop directly.",
         },
         { status: 403 }
       );
@@ -265,7 +261,7 @@ export async function POST(request: Request) {
     selectedSlot = await validateBookingRequest({
       locationCode: data.locationCode,
       serviceId: service.id,
-      startAt: bookingStartDate
+      startAt: bookingStartDate,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Selected time is not available.";
@@ -277,7 +273,19 @@ export async function POST(request: Request) {
 
   const actor = process.env.ADMIN_EMAIL || "system";
 
-  const createWithRetry = async (attempt = 1): Promise<Prisma.BookingGetPayload<{ include: { addOns: { include: { addOn: true } }; customer: true; vehicle: true; service: true; location: true } }>> => {
+  const createWithRetry = async (
+    attempt = 1
+  ): Promise<
+    Prisma.BookingGetPayload<{
+      include: {
+        addOns: { include: { addOn: true } };
+        customer: true;
+        vehicle: true;
+        service: true;
+        location: true;
+      };
+    }>
+  > => {
     try {
       const booking = await prisma.$transaction(async (tx) => {
         const slotSequence = await allocateSlotSequence({
@@ -285,7 +293,7 @@ export async function POST(request: Request) {
           locationId: location.id,
           slotKey: selectedSlot.slotKey,
           startAt: bookingStartDate,
-          maxPerSlot: capacity
+          maxPerSlot: capacity,
         });
 
         const customer = await tx.customer.create({
@@ -293,8 +301,8 @@ export async function POST(request: Request) {
             fullName: data.customer.fullName,
             phone: normalizedPhone,
             email: normalizedEmail,
-            notes: data.notes || null
-          }
+            notes: data.notes || null,
+          },
         });
 
         const vehicle = await tx.vehicle.create({
@@ -306,8 +314,8 @@ export async function POST(request: Request) {
             model: data.vehicle.model,
             trim: data.vehicle.trim || null,
             color: data.vehicle.color || null,
-            plate: data.vehicle.plate || null
-          }
+            plate: data.vehicle.plate || null,
+          },
         });
 
         const manageToken = createClientManageToken();
@@ -342,17 +350,17 @@ export async function POST(request: Request) {
             customerNotes: data.notes || null,
             addOns: {
               createMany: {
-                data: addOnIds.map((addOnId) => ({ addOnId }))
-              }
-            }
+                data: addOnIds.map((addOnId) => ({ addOnId })),
+              },
+            },
           },
           include: {
             addOns: { include: { addOn: true } },
             customer: true,
             vehicle: true,
             service: true,
-            location: true
-          }
+            location: true,
+          },
         });
 
         await tx.bookingAudit.create({
@@ -364,9 +372,9 @@ export async function POST(request: Request) {
               startAt: booking.startAt,
               status: booking.status,
               slotKey: booking.slotKey,
-              slotSequence: booking.slotSequence
-            }
-          }
+              slotSequence: booking.slotSequence,
+            },
+          },
         });
 
         return booking;
@@ -398,7 +406,7 @@ export async function POST(request: Request) {
   const requestedDateLabel = bookingStartDate.toLocaleDateString("en-CA", {
     weekday: "short",
     month: "short",
-    day: "numeric"
+    day: "numeric",
   });
 
   try {
@@ -412,7 +420,7 @@ export async function POST(request: Request) {
       customerPhone: booking.customer.phone,
       customerEmail: booking.customer.email,
       addOns: addOnNames,
-      manageUrl: `${getAppBaseUrl()}/manage/${booking.clientManageToken}`
+      manageUrl: `${getAppBaseUrl()}/manage/${booking.clientManageToken}`,
     });
   } catch (error) {
     console.error("Booking email failed", error);
@@ -433,7 +441,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     id: booking.id,
     status: booking.status,
-    manageUrl: `${getAppBaseUrl()}/manage/${booking.clientManageToken}`
+    manageUrl: `${getAppBaseUrl()}/manage/${booking.clientManageToken}`,
   });
 }
 
@@ -447,7 +455,7 @@ export async function GET(request: Request) {
     location: searchParams.get("location") ?? undefined,
     status: searchParams.get("status") ?? undefined,
     date: searchParams.get("date") ?? undefined,
-    search: searchParams.get("search") ?? undefined
+    search: searchParams.get("search") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -489,10 +497,10 @@ export async function GET(request: Request) {
             { vehicle: { make: { contains: searchTerm } } },
             { vehicle: { model: { contains: searchTerm } } },
             { vehicle: { plate: { contains: searchTerm } } },
-            { service: { name: { contains: searchTerm } } }
-          ]
+            { service: { name: { contains: searchTerm } } },
+          ],
         }
-      : {})
+      : {}),
   };
 
   const [bookings, total] = await prisma.$transaction([
@@ -504,12 +512,12 @@ export async function GET(request: Request) {
         vehicle: true,
         service: true,
         addOns: { include: { addOn: true } },
-        location: true
+        location: true,
       },
       skip: (page - 1) * pageSize,
-      take: pageSize
+      take: pageSize,
     }),
-    prisma.booking.count({ where })
+    prisma.booking.count({ where }),
   ]);
 
   let blockedCustomers: Array<{
@@ -544,17 +552,17 @@ export async function GET(request: Request) {
           ? {
               AND: [
                 {
-                  OR: [{ isActive: true }, { isPotentialMaintenance: true }]
+                  OR: [{ isActive: true }, { isPotentialMaintenance: true }],
                 },
                 {
-                  OR: [{ phone: { in: phones } }, { email: { in: emails } }]
-                }
-              ]
+                  OR: [{ phone: { in: phones } }, { email: { in: emails } }],
+                },
+              ],
             }
           : {
               isActive: true,
-              OR: [{ phone: { in: phones } }, { email: { in: emails } }]
-            })
+              OR: [{ phone: { in: phones } }, { email: { in: emails } }],
+            }),
       },
       select: hasMaintenanceFields
         ? {
@@ -567,7 +575,7 @@ export async function GET(request: Request) {
             isPotentialMaintenance: true,
             maintenanceReason: true,
             maintenanceMarkedAt: true,
-            maintenanceMarkedBy: true
+            maintenanceMarkedBy: true,
           }
         : {
             id: true,
@@ -575,8 +583,8 @@ export async function GET(request: Request) {
             email: true,
             reason: true,
             clientFacingNote: true,
-            isActive: true
-          }
+            isActive: true,
+          },
     });
   }
 
@@ -596,7 +604,7 @@ export async function GET(request: Request) {
       : undefined;
     return {
       ...booking,
-      blockedCustomer: byPhone || byEmail || null
+      blockedCustomer: byPhone || byEmail || null,
     };
   });
 
@@ -606,7 +614,7 @@ export async function GET(request: Request) {
       page,
       pageSize,
       total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize))
-    }
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    },
   });
 }

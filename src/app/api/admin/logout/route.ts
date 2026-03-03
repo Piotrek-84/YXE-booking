@@ -7,7 +7,7 @@ export async function POST() {
     name: ADMIN_COOKIE,
     value: "",
     path: "/",
-    maxAge: 0
+    maxAge: 0,
   });
   return response;
 }

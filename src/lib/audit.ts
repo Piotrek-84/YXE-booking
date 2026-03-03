@@ -1,5 +1,5 @@
-import { prisma } from "./prisma";
 import { Prisma } from "@prisma/client";
+import { prisma } from "./prisma";
 
 export async function writeBookingAudit(params: {
   bookingId: string;
@@ -12,7 +12,7 @@ export async function writeBookingAudit(params: {
       bookingId: params.bookingId,
       action: params.action,
       actor: params.actor || null,
-      details: (params.details || undefined) as Prisma.InputJsonValue | undefined
-    }
+      details: (params.details || undefined) as Prisma.InputJsonValue | undefined,
+    },
   });
 }

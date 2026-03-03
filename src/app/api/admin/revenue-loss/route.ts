@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../lib/prisma";
 import { isAdminAuthorized } from "../../../../lib/admin-auth";
+import { prisma } from "../../../../lib/prisma";
 
 const querySchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
 });
 
 export async function GET(request: Request) {
@@ -14,7 +17,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse({
-    month: searchParams.get("month") ?? undefined
+    month: searchParams.get("month") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
@@ -28,12 +31,12 @@ export async function GET(request: Request) {
   const bookings = await prisma.booking.findMany({
     where: {
       status: { in: ["NO_SHOW"] as any },
-      requestedDate: { gte: start, lt: end }
+      requestedDate: { gte: start, lt: end },
     },
     include: {
       service: true,
-      addOns: { include: { addOn: true } }
-    }
+      addOns: { include: { addOn: true } },
+    },
   });
 
   let noShowCents = 0;
@@ -51,7 +54,7 @@ export async function GET(request: Request) {
     totals: {
       noShowCount: bookings.filter((item) => String(item.status) === "NO_SHOW").length,
       noShowCents,
-      totalLostCents: noShowCents
-    }
+      totalLostCents: noShowCents,
+    },
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 type ManageBooking = {
   id: string;
@@ -24,10 +24,10 @@ function formatDateTime(value?: string | null) {
   return `${date.toLocaleDateString("en-CA", {
     weekday: "short",
     month: "short",
-    day: "numeric"
+    day: "numeric",
   })} ${date.toLocaleTimeString("en-CA", {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
   })}`;
 }
 
@@ -60,7 +60,9 @@ export default function ManageBookingPage() {
       .then((data) => {
         if (!active) return;
         setBooking(data.booking ?? null);
-        const initialDate = String(data.booking?.startAt || data.booking?.requestedDate || "").slice(0, 10);
+        const initialDate = String(
+          data.booking?.startAt || data.booking?.requestedDate || ""
+        ).slice(0, 10);
         setSelectedDate(initialDate);
       })
       .catch((err: unknown) => {
@@ -107,7 +109,7 @@ export default function ManageBookingPage() {
     const response = await fetch(`/api/manage/${token}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     const data = await response.json().catch(() => ({}));
@@ -132,7 +134,7 @@ export default function ManageBookingPage() {
               ...prev,
               startAt: data.booking.startAt,
               requestedWindow: data.booking.requestedWindow,
-              status: data.booking.status || prev.status
+              status: data.booking.status || prev.status,
             }
           : prev
       );
@@ -173,7 +175,9 @@ export default function ManageBookingPage() {
           <p className="mt-1 text-lg font-semibold text-slate-900">
             {formatDateTime(booking.startAt || booking.requestedDate)}
           </p>
-          <p className="mt-1 text-sm text-slate-600">Status: {booking.status.replaceAll("_", " ")}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Status: {booking.status.replaceAll("_", " ")}
+          </p>
           <p className="mt-2 text-sm text-slate-600">
             Vehicle: {booking.vehicle.year ?? ""} {booking.vehicle.make} {booking.vehicle.model}
           </p>
@@ -221,9 +225,8 @@ export default function ManageBookingPage() {
                     {slot.label}
                   </button>
                 ))}
-              {slots.filter((slot) => String(slot.start).slice(0, 10) === selectedDate).length === 0 && (
-                <p className="text-sm text-slate-500">No available slots for this date.</p>
-              )}
+              {slots.filter((slot) => String(slot.start).slice(0, 10) === selectedDate).length ===
+                0 && <p className="text-sm text-slate-500">No available slots for this date.</p>}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <button

@@ -6,7 +6,9 @@ export default function HomePage() {
       <section className="mx-auto w-full max-w-3xl">
         <header className="relative rounded-3xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
           <HiddenAdminEntry />
-          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">YXE Vehicle Detailing</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+            YXE Vehicle Detailing
+          </p>
           <h1 className="mt-3 max-w-3xl text-3xl font-semibold text-slate-900 md:text-5xl">
             Fast, professional detailing with instant online booking
           </h1>

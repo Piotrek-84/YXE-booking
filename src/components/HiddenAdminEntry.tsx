@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const CLICK_WINDOW_MS = 3000;
 const REQUIRED_CLICKS = 5;
@@ -12,10 +12,7 @@ export default function HiddenAdminEntry() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      const isShortcut =
-        event.metaKey &&
-        event.shiftKey &&
-        event.key.toLowerCase() === "a";
+      const isShortcut = event.metaKey && event.shiftKey && event.key.toLowerCase() === "a";
       if (isShortcut) {
         event.preventDefault();
         router.push("/admin/login");

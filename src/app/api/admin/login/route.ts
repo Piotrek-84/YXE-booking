@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ADMIN_COOKIE, createAdminSession } from "../../../../lib/auth";
 
 const loginSchema = z.object({
-  password: z.string().min(6)
+  password: z.string().min(6),
 });
 
 const MAX_ATTEMPTS = 5;
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   if (parsed.data.password !== adminPassword) {
     const nextCount = (state?.count ?? 0) + 1;
-    const lockedUntil = nextCount >= MAX_ATTEMPTS ? now + LOCKOUT_MS : state?.lockedUntil ?? 0;
+    const lockedUntil = nextCount >= MAX_ATTEMPTS ? now + LOCKOUT_MS : (state?.lockedUntil ?? 0);
     attempts.set(ip, { count: nextCount, lockedUntil });
     await delay(FAILED_DELAY_MS);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     path: "/",
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7
+    maxAge: 60 * 60 * 24 * 7,
   });
 
   return response;

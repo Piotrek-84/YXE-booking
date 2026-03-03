@@ -19,7 +19,12 @@ function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return date.toLocaleString("en-CA", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function AdminMaintenanceCustomersPage() {
@@ -35,7 +40,7 @@ export default function AdminMaintenanceCustomersPage() {
     params.set("category", "maintenance");
     if (search.trim()) params.set("search", search.trim());
     const response = await fetch(`/api/blocked-customers?${params.toString()}`, {
-      credentials: "include"
+      credentials: "include",
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -69,7 +74,7 @@ export default function AdminMaintenanceCustomersPage() {
       `/api/blocked-customers?id=${encodeURIComponent(id)}&type=maintenance`,
       {
         method: "DELETE",
-        credentials: "include"
+        credentials: "include",
       }
     );
     if (!response.ok) {
@@ -101,7 +106,9 @@ export default function AdminMaintenanceCustomersPage() {
 
       {loading && <p className="text-sm text-slate-400">Loading maintenance clients…</p>}
       {!loading && error && (
-        <p className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3 text-sm text-rose-200">{error}</p>
+        <p className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-3 text-sm text-rose-200">
+          {error}
+        </p>
       )}
       {!loading && !error && filtered.length === 0 && (
         <p className="rounded-xl border border-slate-800 bg-slate-900 p-3 text-sm text-slate-300">

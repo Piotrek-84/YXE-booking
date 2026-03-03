@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../lib/prisma";
 import { isAdminAuthorized } from "../../../lib/admin-auth";
 import { normalizePhone } from "../../../lib/phone";
+import { prisma } from "../../../lib/prisma";
 
 const createSchema = z.object({
   fullName: z.string().optional(),
@@ -11,13 +11,13 @@ const createSchema = z.object({
   clientFacingNote: z.string().max(300).optional(),
   reason: z.string().max(500).optional(),
   isPotentialMaintenance: z.boolean().optional(),
-  maintenanceReason: z.string().max(500).optional()
+  maintenanceReason: z.string().max(500).optional(),
 });
 
 const listSchema = z.object({
   search: z.string().optional(),
   scope: z.enum(["active", "history", "all"]).optional(),
-  category: z.enum(["blocked", "maintenance"]).optional()
+  category: z.enum(["blocked", "maintenance"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const parsed = listSchema.safeParse({
     search: searchParams.get("search") ?? undefined,
     scope: searchParams.get("scope") ?? undefined,
-    category: searchParams.get("category") ?? undefined
+    category: searchParams.get("category") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
@@ -43,8 +43,8 @@ export async function GET(request: Request) {
         OR: [
           { fullName: { contains: search } },
           { phone: { contains: search } },
-          { email: { contains: search } }
-        ]
+          { email: { contains: search } },
+        ],
       }
     : {};
 
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     category === "maintenance"
       ? {
           ...sharedSearchWhere,
-          isPotentialMaintenance: true
+          isPotentialMaintenance: true,
         }
       : {
           ...sharedSearchWhere,
@@ -63,16 +63,16 @@ export async function GET(request: Request) {
               OR: [
                 { isPotentialMaintenance: false },
                 { isActive: true },
-                { unblockedAt: { not: null } }
-              ]
-            }
-          ]
+                { unblockedAt: { not: null } },
+              ],
+            },
+          ],
         };
 
   const blocked = await (prisma as any).blockedCustomer?.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    take: 500
+    take: 500,
   });
 
   return NextResponse.json({ blocked: blocked || [] });
@@ -107,13 +107,13 @@ export async function POST(request: Request) {
 
   const existing = await blockedCustomerClient.findFirst({
     where: {
-      OR: [{ phone }, ...(email ? [{ email }] : [])]
-    }
+      OR: [{ phone }, ...(email ? [{ email }] : [])],
+    },
   });
 
   if (existing) {
     const nextData: Record<string, unknown> = {
-      fullName: parsed.data.fullName || existing.fullName
+      fullName: parsed.data.fullName || existing.fullName,
     };
 
     if (markAsPotentialMaintenance) {
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
 
     const blockedCustomer = await blockedCustomerClient.update({
       where: { id: existing.id },
-      data: nextData
+      data: nextData,
     });
     return NextResponse.json({ blockedCustomer });
   }
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
           isPotentialMaintenance: true,
           maintenanceReason: parsed.data.maintenanceReason || parsed.data.reason || null,
           maintenanceMarkedAt: new Date(),
-          maintenanceMarkedBy: actor
+          maintenanceMarkedBy: actor,
         }
       : {
           fullName: parsed.data.fullName || null,
@@ -156,8 +156,8 @@ export async function POST(request: Request) {
           email,
           clientFacingNote: parsed.data.clientFacingNote || null,
           reason: parsed.data.reason || null,
-          blockedBy: actor
-        }
+          blockedBy: actor,
+        },
   });
 
   return NextResponse.json({ blockedCustomer });
@@ -188,8 +188,8 @@ export async function DELETE(request: Request) {
         isPotentialMaintenance: false,
         maintenanceReason: null,
         maintenanceMarkedAt: null,
-        maintenanceMarkedBy: null
-      }
+        maintenanceMarkedBy: null,
+      },
     });
     return NextResponse.json({ ok: true });
   }
@@ -199,8 +199,8 @@ export async function DELETE(request: Request) {
     data: {
       isActive: false,
       unblockedAt: new Date(),
-      unblockedBy: process.env.ADMIN_EMAIL || "admin"
-    }
+      unblockedBy: process.env.ADMIN_EMAIL || "admin",
+    },
   });
   return NextResponse.json({ ok: true });
 }

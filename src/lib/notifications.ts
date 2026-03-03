@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
-import { isFeatureEnabled, getAppBaseUrl } from "./feature-flags";
-import { prisma } from "./prisma";
 import { sendEmail } from "./email";
+import { getAppBaseUrl, isFeatureEnabled } from "./feature-flags";
+import { prisma } from "./prisma";
 import { sendSms } from "./sms";
 
 type BookingNotificationShape = {
@@ -21,7 +21,7 @@ type BookingNotificationShape = {
 const notificationLogClient = (prisma as any).notificationLog;
 const timeZoneByLocation: Record<string, string> = {
   YXE: "America/Regina",
-  YYC: "America/Edmonton"
+  YYC: "America/Edmonton",
 };
 
 function makeDedupeKey(parts: string[]) {
@@ -71,7 +71,7 @@ async function logNotification(params: {
         error: params.error || null,
         payload: (params.payload || null) as any,
         sendAt: params.sendAt || null,
-        sentAt: params.status === "SENT" ? new Date() : null
+        sentAt: params.status === "SENT" ? new Date() : null,
       },
       create: {
         bookingId: params.bookingId || null,
@@ -84,8 +84,8 @@ async function logNotification(params: {
         payload: (params.payload || null) as any,
         error: params.error || null,
         sendAt: params.sendAt || null,
-        sentAt: params.status === "SENT" ? new Date() : null
-      }
+        sentAt: params.status === "SENT" ? new Date() : null,
+      },
     });
   } catch (error) {
     console.error("Notification logging failed", error);
@@ -108,12 +108,12 @@ async function sendEmailWithLog(params: {
         to: params.to,
         subject: params.subject,
         html: params.html,
-        text: params.text
+        text: params.text,
       });
       console.info("Email notification sent", {
         bookingId: params.bookingId,
         notificationType: params.notificationType,
-        to: params.to
+        to: params.to,
       });
       await logNotification({
         bookingId: params.bookingId,
@@ -124,14 +124,14 @@ async function sendEmailWithLog(params: {
         provider: "RESEND",
         toAddress: params.to,
         payload: { subject: params.subject },
-        sendAt: params.sendAt
+        sendAt: params.sendAt,
       });
     } catch (error) {
       console.error("Email notification failed", {
         bookingId: params.bookingId,
         notificationType: params.notificationType,
         to: params.to,
-        error: error instanceof Error ? error.message : "Email send failed"
+        error: error instanceof Error ? error.message : "Email send failed",
       });
       await logNotification({
         bookingId: params.bookingId,
@@ -143,7 +143,7 @@ async function sendEmailWithLog(params: {
         toAddress: params.to,
         error: error instanceof Error ? error.message : "Email send failed",
         payload: { subject: params.subject },
-        sendAt: params.sendAt
+        sendAt: params.sendAt,
       });
     }
   }
@@ -169,7 +169,7 @@ async function sendSmsWithLog(params: {
         provider: "TWILIO",
         toAddress: params.to,
         payload: { body: params.body },
-        sendAt: params.sendAt
+        sendAt: params.sendAt,
       });
     } catch (error) {
       await logNotification({
@@ -182,7 +182,7 @@ async function sendSmsWithLog(params: {
         toAddress: params.to,
         error: error instanceof Error ? error.message : "SMS send failed",
         payload: { body: params.body },
-        sendAt: params.sendAt
+        sendAt: params.sendAt,
       });
     }
   }
@@ -197,7 +197,7 @@ function getStartLabel(booking: BookingNotificationShape) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZone
+    timeZone,
   });
 }
 
@@ -206,7 +206,7 @@ export async function sendBookingConfirmationNotifications(booking: BookingNotif
     bookingId: booking.id,
     status: booking.status,
     hasEmail: Boolean(booking.customer?.email),
-    hasPhone: Boolean(booking.customer?.phone)
+    hasPhone: Boolean(booking.customer?.phone),
   });
   const manageUrl = getManageUrl(booking.clientManageToken);
   const startLabel = getStartLabel(booking);
@@ -225,14 +225,14 @@ export async function sendBookingConfirmationNotifications(booking: BookingNotif
       to: emailRecipient,
       subject: "Your detailing appointment is confirmed",
       html: `<p>Hi ${customerName},</p><p>Your appointment is confirmed for ${startLabel}.</p><p>Manage booking: <a href="${manageUrl}">${manageUrl}</a></p>`,
-      text: `Hi ${customerName}, your appointment is confirmed for ${startLabel}. Manage booking: ${manageUrl}`
+      text: `Hi ${customerName}, your appointment is confirmed for ${startLabel}. Manage booking: ${manageUrl}`,
     });
   } else {
     console.warn("Booking confirmation email skipped", {
       bookingId: booking.id,
       hasCustomerEmail: Boolean(customerEmail),
       hasForcedEmail: Boolean(forcedEmail),
-      emailFeatureEnabled: isFeatureEnabled("EMAIL_ENABLED")
+      emailFeatureEnabled: isFeatureEnabled("EMAIL_ENABLED"),
     });
   }
 
@@ -242,7 +242,7 @@ export async function sendBookingConfirmationNotifications(booking: BookingNotif
       dedupeKey: makeDedupeKey([booking.id, "BOOKING_CONFIRMATION_SMS", suffix]),
       notificationType: "BOOKING_CONFIRMATION",
       to: customerPhone,
-      body: `YXE/YYC Detailing: Your booking is confirmed for ${startLabel}. Manage: ${manageUrl}`
+      body: `YXE/YYC Detailing: Your booking is confirmed for ${startLabel}. Manage: ${manageUrl}`,
     });
   }
 }
@@ -260,10 +260,10 @@ export async function sendBookingReminders(now = new Date()) {
       status: { in: ["CONFIRMED", "SCHEDULED"] as any },
       OR: [
         { startAt: { gte: startWindow24, lte: endWindow48 } },
-        { bookingStartDateTime: { gte: startWindow24, lte: endWindow48 } }
-      ]
+        { bookingStartDateTime: { gte: startWindow24, lte: endWindow48 } },
+      ],
     },
-    include: { customer: true, service: true, location: true }
+    include: { customer: true, service: true, location: true },
   });
 
   let processed = 0;
@@ -273,7 +273,12 @@ export async function sendBookingReminders(now = new Date()) {
     const hours = diffMs / (1000 * 60 * 60);
     const manageUrl = getManageUrl(booking.clientManageToken);
 
-    if (hours >= 23.5 && hours <= 24.5 && booking.customer?.email && isFeatureEnabled("EMAIL_ENABLED")) {
+    if (
+      hours >= 23.5 &&
+      hours <= 24.5 &&
+      booking.customer?.email &&
+      isFeatureEnabled("EMAIL_ENABLED")
+    ) {
       await sendEmailWithLog({
         bookingId: booking.id,
         dedupeKey: makeDedupeKey([booking.id, "REMINDER_EMAIL_24H", start.toISOString()]),
@@ -282,12 +287,17 @@ export async function sendBookingReminders(now = new Date()) {
         subject: "Reminder: your detailing appointment is tomorrow",
         html: `<p>Reminder for ${getStartLabel(booking as any)}.</p><p>Manage booking: <a href="${manageUrl}">${manageUrl}</a></p>`,
         text: `Reminder for ${getStartLabel(booking as any)}. Manage booking: ${manageUrl}`,
-        sendAt: now
+        sendAt: now,
       });
       processed += 1;
     }
 
-    if (hours >= 47.5 && hours <= 48.5 && booking.customer?.phone && isFeatureEnabled("SMS_ENABLED")) {
+    if (
+      hours >= 47.5 &&
+      hours <= 48.5 &&
+      booking.customer?.phone &&
+      isFeatureEnabled("SMS_ENABLED")
+    ) {
       await sendSmsWithLog({
         bookingId: booking.id,
         dedupeKey: makeDedupeKey([booking.id, "REMINDER_SMS_48H", start.toISOString()]),
@@ -296,7 +306,7 @@ export async function sendBookingReminders(now = new Date()) {
         body: `Reminder: your detailing appointment is in 48h (${getStartLabel(
           booking as any
         )}). Manage: ${manageUrl}`,
-        sendAt: now
+        sendAt: now,
       });
       processed += 1;
     }
@@ -311,7 +321,7 @@ export async function sendTestNotification(params: {
 }) {
   const booking = await prisma.booking.findUnique({
     where: { id: params.bookingId },
-    include: { customer: true, service: true, location: true }
+    include: { customer: true, service: true, location: true },
   });
   if (!booking) throw new Error("Booking not found");
 
@@ -330,7 +340,7 @@ export async function sendTestNotification(params: {
       to: booking.customer.email,
       subject: "Test reminder (24h email)",
       html: `<p>Test 24h reminder.</p><p>Manage booking: <a href="${manageUrl}">${manageUrl}</a></p>`,
-      text: `Test 24h reminder. Manage booking: ${manageUrl}`
+      text: `Test 24h reminder. Manage booking: ${manageUrl}`,
     });
   }
 
@@ -340,7 +350,7 @@ export async function sendTestNotification(params: {
       dedupeKey: makeDedupeKey([booking.id, "TEST_REMINDER_48H_SMS", now.toISOString()]),
       notificationType: "TEST_REMINDER_48H_SMS",
       to: booking.customer.phone,
-      body: `Test 48h SMS reminder. Manage: ${manageUrl}`
+      body: `Test 48h SMS reminder. Manage: ${manageUrl}`,
     });
   }
 }

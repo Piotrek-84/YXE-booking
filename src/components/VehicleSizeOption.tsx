@@ -9,7 +9,7 @@ type VehicleSizeOptionProps = {
 const spritePositions: Record<VehicleSizeOptionProps["id"], string> = {
   CAR: "0% 0%",
   SUV_TRUCK: "50% 0%",
-  LARGE: "100% 0%"
+  LARGE: "100% 0%",
 };
 
 export default function VehicleSizeOption({
@@ -17,7 +17,7 @@ export default function VehicleSizeOption({
   title,
   subtitle,
   selected,
-  onSelect
+  onSelect,
 }: VehicleSizeOptionProps) {
   return (
     <button
@@ -38,17 +38,17 @@ export default function VehicleSizeOption({
             backgroundImage: "url(/assets/vehicle-size/vehicle-size-strip.png)",
             backgroundSize: "300% 100%",
             backgroundPosition: spritePositions[id],
-            backgroundRepeat: "no-repeat"
+            backgroundRepeat: "no-repeat",
           }}
           aria-hidden="true"
         />
-        <p className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-slate-300" : "text-slate-400"}`}>
+        <p
+          className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-slate-300" : "text-slate-400"}`}
+        >
           Vehicle size
         </p>
         <p className="text-lg font-semibold">{title}</p>
-        <p className={`text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>
-          {subtitle}
-        </p>
+        <p className={`text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{subtitle}</p>
       </div>
     </button>
   );

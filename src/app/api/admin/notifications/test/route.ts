@@ -5,7 +5,7 @@ import { sendTestNotification } from "../../../../../lib/notifications";
 
 const schema = z.object({
   bookingId: z.string().min(3),
-  type: z.enum(["CONFIRMATION", "REMINDER_24H_EMAIL", "REMINDER_48H_SMS"])
+  type: z.enum(["CONFIRMATION", "REMINDER_24H_EMAIL", "REMINDER_48H_SMS"]),
 });
 
 export async function POST(request: Request) {

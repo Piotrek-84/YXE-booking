@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const requestSchema = z.object({
-  gan: z.string().min(6).max(64)
+  gan: z.string().min(6).max(64),
 });
 
 const SQUARE_VERSION = "2025-01-23";
@@ -13,9 +13,7 @@ function normalizeGiftCardNumber(value: string) {
 
 function getSquareBaseUrl() {
   const env = (process.env.SQUARE_ENV || "production").toLowerCase();
-  return env === "sandbox"
-    ? "https://connect.squareupsandbox.com"
-    : "https://connect.squareup.com";
+  return env === "sandbox" ? "https://connect.squareupsandbox.com" : "https://connect.squareup.com";
 }
 
 export async function POST(request: Request) {
@@ -30,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       valid: false,
-      message: "Gift card number appears invalid."
+      message: "Gift card number appears invalid.",
     });
   }
 
@@ -39,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Gift card verification is not configured."
+        error: "Gift card verification is not configured.",
       },
       { status: 503 }
     );
@@ -50,9 +48,9 @@ export async function POST(request: Request) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "Square-Version": SQUARE_VERSION
+      "Square-Version": SQUARE_VERSION,
     },
-    body: JSON.stringify({ gan })
+    body: JSON.stringify({ gan }),
   });
 
   const data = await response.json().catch(() => ({}));
@@ -61,7 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       valid: false,
-      message: "Gift card not found."
+      message: "Gift card not found.",
     });
   }
 
@@ -70,7 +68,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       valid: false,
-      message: "Gift card not found."
+      message: "Gift card not found.",
     });
   }
 
@@ -79,7 +77,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       valid: false,
-      message: `Gift card is ${state.toLowerCase()}.`
+      message: `Gift card is ${state.toLowerCase()}.`,
     });
   }
 
@@ -93,6 +91,6 @@ export async function POST(request: Request) {
     normalizedGan: gan,
     last4: gan.slice(-4),
     balanceAmount: typeof balanceMoney?.amount === "number" ? balanceMoney.amount : null,
-    currency: typeof balanceMoney?.currency === "string" ? balanceMoney.currency : null
+    currency: typeof balanceMoney?.currency === "string" ? balanceMoney.currency : null,
   });
 }

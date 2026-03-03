@@ -1,22 +1,22 @@
 import { BookingStatus, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { writeBookingAudit } from "../../../../lib/audit";
 import {
   allocateSlotSequence,
   getCapacityForLocation,
-  validateBookingRequest
+  validateBookingRequest,
 } from "../../../../lib/availability-engine";
-import { writeBookingAudit } from "../../../../lib/audit";
 import { sendBookingCreatedEmails, sendBookingStatusEmail } from "../../../../lib/email";
 import { getAppBaseUrl } from "../../../../lib/feature-flags";
-import { prisma } from "../../../../lib/prisma";
-import { createClientManageToken, getTokenExpiry } from "../../../../lib/tokens";
 import { sendBookingEventToZapier } from "../../../../lib/integrations/zapier";
 import { sendBookingConfirmationNotifications } from "../../../../lib/notifications";
+import { prisma } from "../../../../lib/prisma";
+import { createClientManageToken, getTokenExpiry } from "../../../../lib/tokens";
 
 const manageSchema = z.object({
   action: z.enum(["cancel", "reschedule"]),
-  newStartAt: z.string().optional()
+  newStartAt: z.string().optional(),
 });
 
 function getCutoffHours(kind: "cancel" | "reschedule") {
@@ -38,23 +38,20 @@ async function findManageBooking(token: string) {
   const booking = await prisma.booking.findFirst({
     where: {
       clientManageToken: token,
-      tokenExpiresAt: { gt: new Date() }
+      tokenExpiresAt: { gt: new Date() },
     },
     include: {
       customer: true,
       vehicle: true,
       service: true,
       location: true,
-      addOns: { include: { addOn: true } }
-    }
+      addOns: { include: { addOn: true } },
+    },
   });
   return booking;
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { token: string } }
-) {
+export async function GET(_request: Request, { params }: { params: { token: string } }) {
   const booking = await findManageBooking(params.token);
 
   if (!booking) {
@@ -76,16 +73,13 @@ export async function GET(
       tokenExpiresAt: booking.tokenExpiresAt,
       addOns: booking.addOns.map((item) => ({
         name: item.addOn.name,
-        priceCents: item.addOn.priceCents
-      }))
-    }
+        priceCents: item.addOn.priceCents,
+      })),
+    },
   });
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { token: string } }
-) {
+export async function PATCH(request: Request, { params }: { params: { token: string } }) {
   const booking = await findManageBooking(params.token);
 
   if (!booking) {
@@ -117,13 +111,13 @@ export async function PATCH(
         canceledAt: new Date(),
         updatedBy: "client:self-service",
         clientManageToken: nextToken,
-        tokenExpiresAt: getTokenExpiry(30)
+        tokenExpiresAt: getTokenExpiry(30),
       },
       include: {
         customer: true,
         service: true,
-        location: true
-      }
+        location: true,
+      },
     });
 
     await writeBookingAudit({
@@ -132,8 +126,8 @@ export async function PATCH(
       actor: booking.customer.email || booking.customer.phone,
       details: {
         previousStatus: booking.status,
-        nextStatus: "CANCELED"
-      }
+        nextStatus: "CANCELED",
+      },
     });
 
     try {
@@ -144,12 +138,12 @@ export async function PATCH(
         requestedDate: updated.requestedDate.toLocaleDateString("en-CA", {
           weekday: "short",
           month: "short",
-          day: "numeric"
+          day: "numeric",
         }),
         requestedWindow: updated.requestedWindow,
         customerName: updated.customer.fullName,
         customerEmail: updated.customer.email,
-        status: "CANCELED"
+        status: "CANCELED",
       });
     } catch (error) {
       console.error("Cancel status email failed", error);
@@ -164,7 +158,7 @@ export async function PATCH(
     return NextResponse.json({
       ok: true,
       status: "CANCELED",
-      message: "Your booking has been canceled."
+      message: "Your booking has been canceled.",
     });
   }
 
@@ -191,7 +185,7 @@ export async function PATCH(
     selectedSlot = await validateBookingRequest({
       locationCode: booking.location.code,
       serviceId: booking.serviceId,
-      startAt: newStartAt
+      startAt: newStartAt,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Selected time is not available.";
@@ -208,7 +202,7 @@ export async function PATCH(
           locationId: booking.locationId,
           slotKey: selectedSlot.slotKey,
           startAt: newStartAt,
-          maxPerSlot: capacity
+          maxPerSlot: capacity,
         });
 
         const nextToken = createClientManageToken();
@@ -227,14 +221,14 @@ export async function PATCH(
             updatedBy: "client:self-service",
             clientManageToken: nextToken,
             tokenExpiresAt: getTokenExpiry(30),
-            status: booking.status === "CANCELED" ? "CONFIRMED" : booking.status
+            status: booking.status === "CANCELED" ? "CONFIRMED" : booking.status,
           },
           include: {
             customer: true,
             service: true,
             location: true,
-            addOns: { include: { addOn: true } }
-          }
+            addOns: { include: { addOn: true } },
+          },
         });
 
         await tx.bookingAudit.create({
@@ -245,9 +239,9 @@ export async function PATCH(
             details: {
               previousStartAt: currentStartAt,
               nextStartAt: newStartAt,
-              slotKey: selectedSlot.slotKey
-            }
-          }
+              slotKey: selectedSlot.slotKey,
+            },
+          },
         });
 
         return updated;
@@ -274,14 +268,14 @@ export async function PATCH(
       requestedDate: updated.requestedDate.toLocaleDateString("en-CA", {
         weekday: "short",
         month: "short",
-        day: "numeric"
+        day: "numeric",
       }),
       requestedWindow: updated.requestedWindow,
       customerName: updated.customer.fullName,
       customerPhone: updated.customer.phone,
       customerEmail: updated.customer.email,
       addOns: updated.addOns.map((item) => item.addOn.name),
-      manageUrl: `${getAppBaseUrl()}/manage/${updated.clientManageToken}`
+      manageUrl: `${getAppBaseUrl()}/manage/${updated.clientManageToken}`,
     });
   } catch (error) {
     console.error("Reschedule email failed", error);
@@ -308,7 +302,7 @@ export async function PATCH(
       id: updated.id,
       startAt: updated.startAt,
       requestedWindow: updated.requestedWindow,
-      status: updated.status
-    }
+      status: updated.status,
+    },
   });
 }

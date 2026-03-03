@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../lib/prisma";
 import { isAdminAuthorized } from "../../../lib/admin-auth";
-import { normalizePhone } from "../../../lib/phone";
 import { getBlockedCustomerCapabilities } from "../../../lib/blocked-customer-capabilities";
+import { normalizePhone } from "../../../lib/phone";
+import { prisma } from "../../../lib/prisma";
 
 const createSchema = z.object({
   fullName: z.string().optional(),
@@ -12,13 +12,13 @@ const createSchema = z.object({
   clientFacingNote: z.string().max(300).optional(),
   reason: z.string().max(500).optional(),
   isPotentialMaintenance: z.boolean().optional(),
-  maintenanceReason: z.string().max(500).optional()
+  maintenanceReason: z.string().max(500).optional(),
 });
 
 const listSchema = z.object({
   search: z.string().optional(),
   scope: z.enum(["active", "history", "all"]).optional(),
-  category: z.enum(["blocked", "maintenance"]).optional()
+  category: z.enum(["blocked", "maintenance"]).optional(),
 });
 
 const legacySelect = {
@@ -33,7 +33,7 @@ const legacySelect = {
   createdAt: true,
   updatedAt: true,
   unblockedAt: true,
-  unblockedBy: true
+  unblockedBy: true,
 };
 
 const maintenanceSelect = {
@@ -41,7 +41,7 @@ const maintenanceSelect = {
   isPotentialMaintenance: true,
   maintenanceReason: true,
   maintenanceMarkedAt: true,
-  maintenanceMarkedBy: true
+  maintenanceMarkedBy: true,
 };
 
 function withSearch(search?: string) {
@@ -50,12 +50,16 @@ function withSearch(search?: string) {
     OR: [
       { fullName: { contains: search } },
       { phone: { contains: search } },
-      { email: { contains: search } }
-    ]
+      { email: { contains: search } },
+    ],
   };
 }
 
-function buildBlockedWhere(scope: "active" | "history" | "all", search?: string, hasMaintenanceFields = false) {
+function buildBlockedWhere(
+  scope: "active" | "history" | "all",
+  search?: string,
+  hasMaintenanceFields = false
+) {
   return {
     ...withSearch(search),
     ...(scope === "active" ? { isActive: true } : {}),
@@ -67,12 +71,12 @@ function buildBlockedWhere(scope: "active" | "history" | "all", search?: string,
               OR: [
                 { isPotentialMaintenance: false },
                 { isActive: true },
-                { unblockedAt: { not: null } }
-              ]
-            }
-          ]
+                { unblockedAt: { not: null } },
+              ],
+            },
+          ],
         }
-      : {})
+      : {}),
   };
 }
 
@@ -90,13 +94,13 @@ async function syncBlockedDevicesForContact(params: {
 
   const contactWhere = [
     { customerPhone: params.phone },
-    ...(params.email ? [{ customerEmail: params.email }] : [])
+    ...(params.email ? [{ customerEmail: params.email }] : []),
   ];
 
   const bookings = await prisma.booking.findMany({
     where: { OR: contactWhere },
     select: { clientDeviceHash: true },
-    take: 500
+    take: 500,
   });
 
   const hashes = Array.from(
@@ -116,14 +120,14 @@ async function syncBlockedDevicesForContact(params: {
         blockedBy: params.actor,
         linkedBlockedCustomerId: params.blockedCustomerId,
         unblockedAt: null,
-        unblockedBy: null
+        unblockedBy: null,
       },
       create: {
         deviceHash,
         reason: params.reason || "Blocked customer device",
         blockedBy: params.actor,
-        linkedBlockedCustomerId: params.blockedCustomerId
-      }
+        linkedBlockedCustomerId: params.blockedCustomerId,
+      },
     });
   }
 }
@@ -140,7 +144,7 @@ export async function GET(request: Request) {
   const parsed = listSchema.safeParse({
     search: searchParams.get("search") ?? undefined,
     scope: searchParams.get("scope") ?? undefined,
-    category: searchParams.get("category") ?? undefined
+    category: searchParams.get("category") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
@@ -159,7 +163,7 @@ export async function GET(request: Request) {
     category === "maintenance"
       ? {
           ...withSearch(search),
-          isPotentialMaintenance: true
+          isPotentialMaintenance: true,
         }
       : buildBlockedWhere(scope, search, hasMaintenanceFields);
 
@@ -170,7 +174,7 @@ export async function GET(request: Request) {
       category === "maintenance" && hasMaintenanceFields
         ? [{ maintenanceMarkedAt: "desc" }, { createdAt: "desc" }]
         : { createdAt: "desc" },
-    take: 500
+    take: 500,
   });
 
   return NextResponse.json({ blocked: blocked || [] });
@@ -214,14 +218,14 @@ export async function POST(request: Request) {
 
   const existing = await blockedCustomerClient.findFirst({
     where: {
-      OR: [{ phone }, ...(email ? [{ email }] : [])]
+      OR: [{ phone }, ...(email ? [{ email }] : [])],
     },
-    select: hasMaintenanceFields ? maintenanceSelect : legacySelect
+    select: hasMaintenanceFields ? maintenanceSelect : legacySelect,
   });
 
   if (existing) {
     const nextData: Record<string, unknown> = {
-      fullName: parsed.data.fullName || existing.fullName
+      fullName: parsed.data.fullName || existing.fullName,
     };
 
     if (markAsPotentialMaintenance && hasMaintenanceFields) {
@@ -245,7 +249,7 @@ export async function POST(request: Request) {
     const blockedCustomer = await blockedCustomerClient.update({
       where: { id: existing.id },
       data: nextData,
-      select: hasMaintenanceFields ? maintenanceSelect : legacySelect
+      select: hasMaintenanceFields ? maintenanceSelect : legacySelect,
     });
 
     if (!markAsPotentialMaintenance) {
@@ -255,7 +259,7 @@ export async function POST(request: Request) {
         blockedCustomerId: existing.id,
         reason: parsed.data.reason || existing.reason || null,
         actor,
-        hasDeviceBlocking
+        hasDeviceBlocking,
       });
     }
     return NextResponse.json({ blockedCustomer });
@@ -272,7 +276,7 @@ export async function POST(request: Request) {
             isPotentialMaintenance: true,
             maintenanceReason: parsed.data.maintenanceReason || parsed.data.reason || null,
             maintenanceMarkedAt: new Date(),
-            maintenanceMarkedBy: actor
+            maintenanceMarkedBy: actor,
           }
         : {
             fullName: parsed.data.fullName || null,
@@ -280,9 +284,9 @@ export async function POST(request: Request) {
             email,
             clientFacingNote: parsed.data.clientFacingNote || null,
             reason: parsed.data.reason || null,
-            blockedBy: actor
+            blockedBy: actor,
           },
-    select: hasMaintenanceFields ? maintenanceSelect : legacySelect
+    select: hasMaintenanceFields ? maintenanceSelect : legacySelect,
   });
 
   if (!markAsPotentialMaintenance) {
@@ -292,7 +296,7 @@ export async function POST(request: Request) {
       blockedCustomerId: blockedCustomer.id,
       reason: parsed.data.reason || null,
       actor,
-      hasDeviceBlocking
+      hasDeviceBlocking,
     });
   }
 
@@ -333,8 +337,8 @@ export async function DELETE(request: Request) {
         isPotentialMaintenance: false,
         maintenanceReason: null,
         maintenanceMarkedAt: null,
-        maintenanceMarkedBy: null
-      }
+        maintenanceMarkedBy: null,
+      },
     });
     return NextResponse.json({ ok: true });
   }
@@ -344,8 +348,8 @@ export async function DELETE(request: Request) {
     data: {
       isActive: false,
       unblockedAt: new Date(),
-      unblockedBy: process.env.ADMIN_EMAIL || "admin"
-    }
+      unblockedBy: process.env.ADMIN_EMAIL || "admin",
+    },
   });
 
   if (hasDeviceBlocking) {
@@ -356,8 +360,8 @@ export async function DELETE(request: Request) {
         data: {
           isActive: false,
           unblockedAt: new Date(),
-          unblockedBy: process.env.ADMIN_EMAIL || "admin"
-        }
+          unblockedBy: process.env.ADMIN_EMAIL || "admin",
+        },
       });
     }
   }

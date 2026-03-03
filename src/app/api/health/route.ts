@@ -13,6 +13,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     db: dbOk ? "up" : "down",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../lib/prisma";
 import { isAdminAuthorized } from "../../../../lib/admin-auth";
+import { prisma } from "../../../../lib/prisma";
 
 const bulkStatusSchema = z.object({
   bookingIds: z.array(z.string().min(3)).min(1).max(200),
@@ -12,8 +12,8 @@ const bulkStatusSchema = z.object({
     "IN_PROGRESS",
     "COMPLETED",
     "CANCELED",
-    "NO_SHOW"
-  ])
+    "NO_SHOW",
+  ]),
 });
 
 export async function PATCH(request: Request) {
@@ -38,7 +38,7 @@ export async function PATCH(request: Request) {
   const result = await prisma.$transaction(async (tx) => {
     const existingBookings = await tx.booking.findMany({
       where: { id: { in: bookingIds } },
-      select: { id: true, status: true }
+      select: { id: true, status: true },
     });
 
     if (existingBookings.length === 0) {
@@ -49,7 +49,7 @@ export async function PATCH(request: Request) {
 
     await tx.booking.updateMany({
       where: { id: { in: updatedIds } },
-      data: { status: status as any }
+      data: { status: status as any },
     });
 
     await tx.bookingAudit.createMany({
@@ -62,11 +62,11 @@ export async function PATCH(request: Request) {
             {
               field: "status",
               from: booking.status,
-              to: status
-            }
-          ]
-        }
-      }))
+              to: status,
+            },
+          ],
+        },
+      })),
     });
 
     return { updatedCount: updatedIds.length, updatedIds };

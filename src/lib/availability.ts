@@ -3,7 +3,7 @@ import {
   SLOT_WINDOW_DAYS,
   YXE_TIMEZONE,
   YXE_UTC_OFFSET,
-  yxeSchedule
+  yxeSchedule,
 } from "../../config/schedules";
 
 type Slot = {
@@ -17,7 +17,7 @@ function formatDateLabel(date: Date) {
     weekday: "short",
     month: "short",
     day: "numeric",
-    timeZone: YXE_TIMEZONE
+    timeZone: YXE_TIMEZONE,
   });
 }
 
@@ -25,7 +25,7 @@ function formatTimeLabel(date: Date) {
   return date.toLocaleTimeString("en-CA", {
     hour: "numeric",
     minute: "2-digit",
-    timeZone: YXE_TIMEZONE
+    timeZone: YXE_TIMEZONE,
   });
 }
 
@@ -34,7 +34,7 @@ function getYxeDateParts(date: Date) {
     timeZone: YXE_TIMEZONE,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
   })
     .formatToParts(date)
     .reduce<Record<string, string>>((acc, part) => {
@@ -45,14 +45,14 @@ function getYxeDateParts(date: Date) {
   return {
     year: parts.year,
     month: parts.month,
-    day: parts.day
+    day: parts.day,
   };
 }
 
 function getYxeDayOfWeek(date: Date) {
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone: YXE_TIMEZONE,
-    weekday: "short"
+    weekday: "short",
   }).format(date);
 
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(day);
@@ -102,10 +102,7 @@ export type AvailabilitySlot = {
   isAvailable: boolean;
 };
 
-export function applyCapacity(
-  slots: Slot[],
-  counts: Record<string, number>
-): AvailabilitySlot[] {
+export function applyCapacity(slots: Slot[], counts: Record<string, number>): AvailabilitySlot[] {
   return slots.map((slot) => {
     const used = counts[slot.slotKey] ?? 0;
     const remaining = Math.max(SLOT_CAPACITY - used, 0);
@@ -113,7 +110,7 @@ export function applyCapacity(
       start: slot.start,
       label: slot.label,
       remainingCapacity: remaining,
-      isAvailable: remaining > 0
+      isAvailable: remaining > 0,
     };
   });
 }

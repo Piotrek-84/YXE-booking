@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     serviceDurationMinutes: Number.isFinite(durationMins) ? durationMins : undefined,
     serviceBufferMinutes: Number.isFinite(bufferMins) ? bufferMins : undefined,
     from: now,
-    to: end
+    to: end,
   });
 
   return NextResponse.json({
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       end: slot.endAt,
       label: slot.label,
       remainingCapacity: slot.remainingCapacity,
-      isAvailable: slot.isAvailable
-    }))
+      isAvailable: slot.isAvailable,
+    })),
   });
 }
