@@ -89,13 +89,36 @@ type BookingForm = {
   vehicleModel: string;
   vehicleTrim: string;
   vehicleColor: string;
+  giftCardNumber: string;
   notes: string;
   submitError: string;
 };
 
 type FieldErrors = Partial<
-  Record<"fullName" | "phone" | "email" | "vehicleMake" | "vehicleModel", string>
+  Record<
+    | "fullName"
+    | "phone"
+    | "email"
+    | "vehicleYear"
+    | "vehicleMake"
+    | "vehicleModel"
+    | "vehicleTrim"
+    | "vehicleColor"
+    | "giftCardNumber"
+    | "notes",
+    string
+  >
 >;
+
+type GiftCardCheckState = {
+  status: "idle" | "checking" | "valid" | "invalid" | "error";
+  message?: string;
+  normalizedGan?: string;
+  cardId?: string;
+  last4?: string;
+  balanceAmount?: number | null;
+  currency?: string | null;
+};
 
 const initialForm: BookingForm = {
   city: "YXE",
@@ -113,11 +136,83 @@ const initialForm: BookingForm = {
   vehicleModel: "",
   vehicleTrim: "",
   vehicleColor: "",
+  giftCardNumber: "",
   notes: "",
   submitError: ""
 };
 
 const initialFieldErrors: FieldErrors = {};
+
+function validateCustomerFields(form: BookingForm) {
+  const errors: FieldErrors = {};
+  const normalizedPhone = normalizePhone(form.phone);
+  const trimmedEmail = form.email.trim();
+  const year = form.vehicleYear.trim();
+  const now = new Date();
+  const maxYear = now.getFullYear() + 1;
+
+  if (form.fullName.trim().length < 2) {
+    errors.fullName = "Full name is required.";
+  } else if (form.fullName.trim().length > 80) {
+    errors.fullName = "Full name must be 80 characters or less.";
+  }
+
+  if (normalizedPhone.length < 7) {
+    errors.phone = "Enter a valid phone number (numbers only, no spaces).";
+  }
+
+  if (trimmedEmail.length === 0) {
+    errors.email = "Email is required.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    errors.email = "Enter a valid email address.";
+  }
+
+  if (year.length > 0) {
+    const yearNumber = Number(year);
+    if (!/^\d{4}$/.test(year)) {
+      errors.vehicleYear = "Year must be 4 digits.";
+    } else if (!Number.isInteger(yearNumber) || yearNumber < 1980 || yearNumber > maxYear) {
+      errors.vehicleYear = `Year must be between 1980 and ${maxYear}.`;
+    }
+  }
+
+  if (form.vehicleMake.trim().length < 2) {
+    errors.vehicleMake = "Vehicle make is required.";
+  } else if (form.vehicleMake.trim().length > 40) {
+    errors.vehicleMake = "Vehicle make must be 40 characters or less.";
+  }
+
+  if (form.vehicleModel.trim().length < 1) {
+    errors.vehicleModel = "Vehicle model is required.";
+  } else if (form.vehicleModel.trim().length > 40) {
+    errors.vehicleModel = "Vehicle model must be 40 characters or less.";
+  }
+
+  if (form.vehicleTrim.trim().length > 40) {
+    errors.vehicleTrim = "Trim must be 40 characters or less.";
+  }
+
+  if (form.vehicleColor.trim().length > 30) {
+    errors.vehicleColor = "Color must be 30 characters or less.";
+  }
+
+  if (form.giftCardNumber.trim().length > 0) {
+    const normalizedGiftCard = normalizeGiftCardNumber(form.giftCardNumber);
+    if (normalizedGiftCard.length < 8) {
+      errors.giftCardNumber = "Enter a valid gift card number.";
+    }
+  }
+
+  if (form.notes.trim().length > 500) {
+    errors.notes = "Notes must be 500 characters or less.";
+  }
+
+  return errors;
+}
+
+function normalizeGiftCardNumber(value: string) {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
 
 function stubCreateBooking(data: BookingForm) {
   return new Promise<{ id: string }>((resolve) => {
@@ -138,6 +233,7 @@ export default function BookingPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [selectedSlotDate, setSelectedSlotDate] = useState("");
+  const [giftCardCheck, setGiftCardCheck] = useState<GiftCardCheckState>({ status: "idle" });
   const router = useRouter();
 
 const filteredPackages = useMemo(() => {
@@ -188,12 +284,7 @@ const filteredAddOns = useMemo(() => {
       case 3:
         return form.bookingStart !== "";
       case 4:
-        return (
-          form.fullName.trim().length > 1 &&
-          normalizePhone(form.phone).length > 6 &&
-          form.vehicleMake.trim().length > 1 &&
-          form.vehicleModel.trim().length > 0
-        );
+        return Object.keys(validateCustomerFields(form)).length === 0;
       default:
         return false;
     }
@@ -261,26 +352,70 @@ const filteredAddOns = useMemo(() => {
     return slots.filter((slot) => String(slot.start).slice(0, 10) === selectedSlotDate);
   }, [slots, selectedSlotDate]);
 
+  const verifyGiftCard = async () => {
+    const normalizedGiftCard = normalizeGiftCardNumber(form.giftCardNumber);
+    if (!normalizedGiftCard) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        giftCardNumber: "Enter a gift card number to verify."
+      }));
+      setGiftCardCheck({ status: "idle" });
+      return;
+    }
+
+    setFieldErrors((prev) => ({ ...prev, giftCardNumber: undefined }));
+    setGiftCardCheck({ status: "checking" });
+
+    try {
+      const response = await fetch("/api/gift-cards/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gan: normalizedGiftCard })
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.ok) {
+        const message = data?.error || "Gift card verification is unavailable right now.";
+        setGiftCardCheck({ status: "error", message });
+        return;
+      }
+
+      if (!data.valid) {
+        setGiftCardCheck({
+          status: "invalid",
+          message: data?.message || "Gift card not found."
+        });
+        return;
+      }
+
+      setGiftCardCheck({
+        status: "valid",
+        message: data?.message || "Gift card verified.",
+        normalizedGan: data?.normalizedGan,
+        cardId: data?.cardId,
+        last4: data?.last4,
+        balanceAmount: data?.balanceAmount,
+        currency: data?.currency
+      });
+    } catch {
+      setGiftCardCheck({
+        status: "error",
+        message: "Gift card verification failed. Please try again."
+      });
+    }
+  };
+
   const handleSubmit = async () => {
-    const nextErrors: FieldErrors = {};
+    const nextErrors = validateCustomerFields(form);
     const normalizedPhone = normalizePhone(form.phone);
     const trimmedEmail = form.email.trim();
-    if (form.fullName.trim().length < 2) {
-      nextErrors.fullName = "Full name is required.";
-    }
-    if (normalizedPhone.length < 7) {
-      nextErrors.phone = "Enter a valid phone number (numbers only, no spaces).";
-    }
-    if (trimmedEmail.length === 0) {
-      nextErrors.email = "Email is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      nextErrors.email = "Enter a valid email address.";
-    }
-    if (form.vehicleMake.trim().length < 2) {
-      nextErrors.vehicleMake = "Vehicle make is required.";
-    }
-    if (form.vehicleModel.trim().length < 1) {
-      nextErrors.vehicleModel = "Vehicle model is required.";
+    const normalizedGiftCard = normalizeGiftCardNumber(form.giftCardNumber);
+
+    if (
+      normalizedGiftCard &&
+      (giftCardCheck.status !== "valid" || giftCardCheck.normalizedGan !== normalizedGiftCard)
+    ) {
+      nextErrors.giftCardNumber = "Please verify your gift card number before confirming.";
     }
 
     setFieldErrors(nextErrors);
@@ -299,6 +434,22 @@ const filteredAddOns = useMemo(() => {
       priceCents: addon.priceCents,
       durationMins: addon.durationMins
     }));
+
+    const intakeAnswers =
+      normalizedGiftCard && giftCardCheck.status === "valid"
+        ? {
+            giftCard: {
+              verified: true,
+              cardId: giftCardCheck.cardId || null,
+              last4: giftCardCheck.last4 || normalizedGiftCard.slice(-4),
+              balanceAmount:
+                typeof giftCardCheck.balanceAmount === "number"
+                  ? giftCardCheck.balanceAmount
+                  : null,
+              currency: giftCardCheck.currency || null
+            }
+          }
+        : undefined;
 
     const payload = {
       locationCode: form.city,
@@ -324,6 +475,7 @@ const filteredAddOns = useMemo(() => {
         trim: form.vehicleTrim,
         color: form.vehicleColor
       },
+      intakeAnswers,
       notes: form.notes
     };
 
@@ -679,6 +831,12 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, fullName: event.target.value }))
                   }
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      fullName: validateCustomerFields(form).fullName
+                    }))
+                  }
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     fieldErrors.fullName ? "border-rose-400 bg-rose-50" : "border-slate-200"
                   }`}
@@ -697,6 +855,12 @@ const filteredAddOns = useMemo(() => {
                   value={form.phone}
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, phone: normalizePhone(event.target.value) }))
+                  }
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      phone: validateCustomerFields(form).phone
+                    }))
                   }
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     fieldErrors.phone ? "border-rose-400 bg-rose-50" : "border-slate-200"
@@ -717,6 +881,12 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, email: event.target.value }))
                   }
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      email: validateCustomerFields(form).email
+                    }))
+                  }
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     fieldErrors.email ? "border-rose-400 bg-rose-50" : "border-slate-200"
                   }`}
@@ -736,9 +906,20 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, vehicleYear: event.target.value }))
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      vehicleYear: validateCustomerFields(form).vehicleYear
+                    }))
+                  }
+                  className={`rounded-xl border px-3 py-2 text-sm ${
+                    fieldErrors.vehicleYear ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                  }`}
                   placeholder="2020"
                 />
+                {fieldErrors.vehicleYear && (
+                  <p className="text-sm text-rose-600">{fieldErrors.vehicleYear}</p>
+                )}
               </div>
               <div className="grid gap-3">
                 <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
@@ -748,6 +929,12 @@ const filteredAddOns = useMemo(() => {
                   value={form.vehicleMake}
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, vehicleMake: event.target.value }))
+                  }
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      vehicleMake: validateCustomerFields(form).vehicleMake
+                    }))
                   }
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     fieldErrors.vehicleMake ? "border-rose-400 bg-rose-50" : "border-slate-200"
@@ -768,6 +955,12 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, vehicleModel: event.target.value }))
                   }
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      vehicleModel: validateCustomerFields(form).vehicleModel
+                    }))
+                  }
                   className={`rounded-xl border px-3 py-2 text-sm ${
                     fieldErrors.vehicleModel ? "border-rose-400 bg-rose-50" : "border-slate-200"
                   }`}
@@ -787,9 +980,20 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, vehicleTrim: event.target.value }))
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      vehicleTrim: validateCustomerFields(form).vehicleTrim
+                    }))
+                  }
+                  className={`rounded-xl border px-3 py-2 text-sm ${
+                    fieldErrors.vehicleTrim ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                  }`}
                   placeholder="XLE"
                 />
+                {fieldErrors.vehicleTrim && (
+                  <p className="text-sm text-rose-600">{fieldErrors.vehicleTrim}</p>
+                )}
               </div>
               <div className="grid gap-3">
                 <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
@@ -800,9 +1004,76 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, vehicleColor: event.target.value }))
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      vehicleColor: validateCustomerFields(form).vehicleColor
+                    }))
+                  }
+                  className={`rounded-xl border px-3 py-2 text-sm ${
+                    fieldErrors.vehicleColor ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                  }`}
                   placeholder="Midnight Blue"
                 />
+                {fieldErrors.vehicleColor && (
+                  <p className="text-sm text-rose-600">{fieldErrors.vehicleColor}</p>
+                )}
+              </div>
+              <div className="grid gap-3">
+                <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  Square Gift Card Number (optional)
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    value={form.giftCardNumber}
+                    onChange={(event) => {
+                      setForm((prev) => ({ ...prev, giftCardNumber: event.target.value }));
+                      setFieldErrors((prev) => ({ ...prev, giftCardNumber: undefined }));
+                      setGiftCardCheck({ status: "idle" });
+                    }}
+                    onBlur={() =>
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        giftCardNumber: validateCustomerFields(form).giftCardNumber
+                      }))
+                    }
+                    className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
+                      fieldErrors.giftCardNumber
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-slate-200"
+                    }`}
+                    placeholder="Enter gift card number"
+                    aria-invalid={Boolean(fieldErrors.giftCardNumber)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void verifyGiftCard()}
+                    disabled={giftCardCheck.status === "checking"}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                  >
+                    {giftCardCheck.status === "checking" ? "Verifying..." : "Verify"}
+                  </button>
+                </div>
+                {fieldErrors.giftCardNumber && (
+                  <p className="text-sm text-rose-600">{fieldErrors.giftCardNumber}</p>
+                )}
+                {giftCardCheck.status === "valid" && (
+                  <p className="text-sm text-emerald-700">
+                    Gift card verified ending in {giftCardCheck.last4 || "----"}
+                    {typeof giftCardCheck.balanceAmount === "number" && giftCardCheck.currency
+                      ? ` · Balance ${(giftCardCheck.balanceAmount / 100).toLocaleString("en-CA", {
+                          style: "currency",
+                          currency: giftCardCheck.currency
+                        })}`
+                      : ""}
+                  </p>
+                )}
+                {giftCardCheck.status === "invalid" && (
+                  <p className="text-sm text-rose-600">{giftCardCheck.message}</p>
+                )}
+                {giftCardCheck.status === "error" && (
+                  <p className="text-sm text-rose-600">{giftCardCheck.message}</p>
+                )}
               </div>
               <div className="grid gap-3">
                 <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
@@ -813,9 +1084,20 @@ const filteredAddOns = useMemo(() => {
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, notes: event.target.value }))
                   }
-                  className="min-h-[90px] rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  onBlur={() =>
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      notes: validateCustomerFields(form).notes
+                    }))
+                  }
+                  className={`min-h-[90px] rounded-xl border px-3 py-2 text-sm ${
+                    fieldErrors.notes ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                  }`}
                   placeholder="Anything we should know?"
                 />
+                {fieldErrors.notes && (
+                  <p className="text-sm text-rose-600">{fieldErrors.notes}</p>
+                )}
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
@@ -846,6 +1128,14 @@ const filteredAddOns = useMemo(() => {
                 <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Date & Time</p>
                 <p className="text-base font-semibold">{form.slotLabel}</p>
               </div>
+              {giftCardCheck.status === "valid" && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Gift Card</p>
+                  <p className="text-base font-semibold">
+                    Verified ending in {giftCardCheck.last4 || "----"}
+                  </p>
+                </div>
+              )}
               <div className="mt-4 space-y-2">
                 <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Vehicle</p>
                 <p className="text-base font-semibold">
@@ -872,13 +1162,32 @@ const filteredAddOns = useMemo(() => {
                 <p className="text-base font-semibold text-slate-900">{formatDuration(estimatedDurationMins)}</p>
               </div>
             </div>
-            <button
-              className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? "Confirming..." : "Confirm booking"}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+                onClick={goBack}
+                disabled={loading}
+              >
+                Back
+              </button>
+              <button
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
+                  setStep(1);
+                }}
+                disabled={loading}
+              >
+                Change service
+              </button>
+              <button
+                className="flex-[2] rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? "Confirming..." : "Confirm booking"}
+              </button>
+            </div>
           </section>
         )}
 

@@ -29,6 +29,8 @@ REMINDERS_ENABLED=false
 GOOGLE_SYNC_ENABLED=false
 MANAGE_CANCEL_CUTOFF_HOURS=2
 MANAGE_RESCHEDULE_CUTOFF_HOURS=2
+SQUARE_ACCESS_TOKEN=your_square_token
+SQUARE_ENV=production
 ```
 
 Supabase note:
@@ -37,6 +39,8 @@ Supabase note:
 
 `RESEND_API_KEY` and `EMAIL_FROM` are optional. If not set, email notifications are skipped.
 `EMAIL_ENABLED`, `REMINDERS_ENABLED`, and `GOOGLE_SYNC_ENABLED` are feature flags.
+`SQUARE_ACCESS_TOKEN` is required only if you enable gift card verification in checkout.
+Use `SQUARE_ENV=sandbox` for Square sandbox testing.
 
 Set `ADMIN_PASSWORD` locally and restart dev server after changes:
 - macOS/Linux: `echo 'ADMIN_PASSWORD=your-strong-password' >> .env`
