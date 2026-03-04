@@ -129,3 +129,49 @@ export async function sendBookingStatusEmail(context: BookingStatusContext) {
     ].join("\n"),
   });
 }
+
+type ScheduleEmailContext = {
+  employeeName: string;
+  employeeEmail: string;
+  locationCode: string;
+  periodLabel: string;
+  shifts: Array<{
+    dateLabel: string;
+    startTime: string;
+    endTime: string;
+  }>;
+  requestUrl: string;
+};
+
+export async function sendEmployeeScheduleEmail(context: ScheduleEmailContext) {
+  const shiftRows = context.shifts.length
+    ? context.shifts
+        .map(
+          (shift) =>
+            `<li><strong>${shift.dateLabel}</strong> · ${shift.startTime} - ${shift.endTime}</li>`
+        )
+        .join("")
+    : "<li>No shifts assigned for this period.</li>";
+
+  await sendEmail({
+    to: context.employeeEmail,
+    subject: `Your ${context.locationCode} schedule · ${context.periodLabel}`,
+    html: `
+      <p>Hi ${context.employeeName},</p>
+      <p>Here is your current schedule for <strong>${context.locationCode}</strong> (${context.periodLabel}).</p>
+      <ul>${shiftRows}</ul>
+      <p>If you need a day off or a schedule change, submit a request here:</p>
+      <p><a href="${context.requestUrl}">${context.requestUrl}</a></p>
+      <p>Thanks.</p>
+    `,
+    text: [
+      `Hi ${context.employeeName},`,
+      `Your ${context.locationCode} schedule (${context.periodLabel}):`,
+      ...context.shifts.map(
+        (shift) => `- ${shift.dateLabel} ${shift.startTime} - ${shift.endTime}`
+      ),
+      context.shifts.length ? "" : "- No shifts assigned for this period.",
+      `Schedule change/day-off request: ${context.requestUrl}`,
+    ].join("\n"),
+  });
+}

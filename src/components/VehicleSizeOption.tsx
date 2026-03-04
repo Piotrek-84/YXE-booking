@@ -25,10 +25,10 @@ export default function VehicleSizeOption({
       onClick={() => onSelect(id)}
       aria-pressed={selected}
       aria-label={`${title} vehicle size`}
-      className={`rounded-2xl border px-5 py-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+      className={`rounded-2xl border px-5 py-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-text ${
         selected
-          ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200/70"
-          : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+          ? "border-brand-text bg-brand-text text-white shadow-lg shadow-brand-text/20"
+          : "border-brand-text/25 bg-white text-brand-text hover:border-brand-text/35"
       }`}
     >
       <div className="flex flex-col items-center gap-4 text-center">
@@ -43,12 +43,12 @@ export default function VehicleSizeOption({
           aria-hidden="true"
         />
         <p
-          className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-slate-300" : "text-slate-400"}`}
+          className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-white/80" : "text-brand-text/60"}`}
         >
           Vehicle size
         </p>
         <p className="text-lg font-semibold">{title}</p>
-        <p className={`text-sm ${selected ? "text-slate-200" : "text-slate-600"}`}>{subtitle}</p>
+        <p className={`text-sm ${selected ? "text-white/85" : "text-brand-text/80"}`}>{subtitle}</p>
       </div>
     </button>
   );

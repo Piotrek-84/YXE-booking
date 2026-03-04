@@ -32,6 +32,85 @@ function getTimezone(locationCode: string) {
   return timezoneByLocation[locationCode] || "America/Regina";
 }
 
+function isMissingScheduleSchemaError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2021" || error.code === "P2022")
+  );
+}
+
+type SlotBlockRow = {
+  slotKey: string;
+  slotLine: number;
+  isAutoStaffBlock?: boolean;
+};
+
+async function loadSlotBlocksForAvailability(params: {
+  locationId: string;
+  from: Date;
+  to: Date;
+}): Promise<SlotBlockRow[]> {
+  if (!slotBlockClient) return [];
+
+  try {
+    return await slotBlockClient.findMany({
+      where: {
+        locationId: params.locationId,
+        startAt: { gte: params.from, lte: params.to },
+      },
+      select: {
+        slotKey: true,
+        slotLine: true,
+        isAutoStaffBlock: true,
+      },
+    });
+  } catch (error) {
+    if (!isMissingScheduleSchemaError(error)) throw error;
+  }
+
+  try {
+    const fallbackRows: Array<{ slotKey: string; slotLine: number }> =
+      await slotBlockClient.findMany({
+        where: {
+          locationId: params.locationId,
+          startAt: { gte: params.from, lte: params.to },
+        },
+        select: {
+          slotKey: true,
+          slotLine: true,
+        },
+      });
+    return fallbackRows.map((row) => ({ ...row, isAutoStaffBlock: false }));
+  } catch {
+    return [];
+  }
+}
+
+async function loadScheduledShiftDateKeys(params: {
+  locationCode: string;
+  from: Date;
+  to: Date;
+}): Promise<Set<string>> {
+  try {
+    const rows = await prisma.employeeShift.findMany({
+      where: {
+        locationCode: params.locationCode,
+        shiftDate: {
+          gte: params.from,
+          lte: params.to,
+        },
+      },
+      select: {
+        shiftDate: true,
+      },
+    });
+    return new Set(rows.map((row) => row.shiftDate.toISOString().slice(0, 10)));
+  } catch (error) {
+    if (isMissingScheduleSchemaError(error)) return new Set();
+    throw error;
+  }
+}
+
 async function resolveAvailabilityLocation(locationCode: string) {
   const existing = await prisma.location.findUnique({ where: { code: locationCode } });
   if (existing) return existing;
@@ -137,37 +216,36 @@ export async function getAvailableSlots(params: {
   const durationMinutes = service?.durationMinutes ?? params.serviceDurationMinutes ?? 60;
   const bufferMinutes = service?.bufferMinutes ?? params.serviceBufferMinutes ?? 0;
 
-  const [capacityRule, locationHours, overrides, blackouts, slotBlocks] = await Promise.all([
-    prisma.capacityRule.findUnique({ where: { locationId: location.id } }),
-    prisma.locationHours.findMany({ where: { locationId: location.id } }),
-    prisma.availabilityOverride.findMany({
-      where: {
-        locationId: location.id,
-        date: {
-          gte: new Date(from.toISOString().slice(0, 10)),
-          lte: new Date(to.toISOString().slice(0, 10)),
+  const [capacityRule, locationHours, overrides, blackouts, slotBlocks, scheduledShiftDateKeys] =
+    await Promise.all([
+      prisma.capacityRule.findUnique({ where: { locationId: location.id } }),
+      prisma.locationHours.findMany({ where: { locationId: location.id } }),
+      prisma.availabilityOverride.findMany({
+        where: {
+          locationId: location.id,
+          date: {
+            gte: new Date(from.toISOString().slice(0, 10)),
+            lte: new Date(to.toISOString().slice(0, 10)),
+          },
         },
-      },
-    }),
-    prisma.blackoutDate.findMany({
-      where: {
+      }),
+      prisma.blackoutDate.findMany({
+        where: {
+          locationId: location.id,
+          OR: [{ startAt: { lte: to }, endAt: { gte: from } }],
+        },
+      }),
+      loadSlotBlocksForAvailability({
         locationId: location.id,
-        OR: [{ startAt: { lte: to }, endAt: { gte: from } }],
-      },
-    }),
-    slotBlockClient
-      ? slotBlockClient.findMany({
-          where: {
-            locationId: location.id,
-            startAt: { gte: from, lte: to },
-          },
-          select: {
-            slotKey: true,
-            slotLine: true,
-          },
-        })
-      : Promise.resolve([]),
-  ]);
+        from,
+        to,
+      }),
+      loadScheduledShiftDateKeys({
+        locationCode: params.locationCode,
+        from,
+        to,
+      }),
+    ]);
 
   const timeZone = getTimezone(params.locationCode);
   const intervalMinutes = capacityRule?.slotIntervalMinutes || DEFAULT_INTERVAL_MINUTES;
@@ -298,7 +376,11 @@ export async function getAvailableSlots(params: {
   });
 
   const blockedCounts = new Map<string, number>();
-  slotBlocks.forEach((block: { slotKey: string; slotLine: number }) => {
+  slotBlocks.forEach((block: SlotBlockRow) => {
+    const slotUtcDate = block.slotKey.split(":")[1]?.slice(0, 10) || "";
+    if (block.isAutoStaffBlock && slotUtcDate && !scheduledShiftDateKeys.has(slotUtcDate)) {
+      return;
+    }
     const current = blockedCounts.get(block.slotKey) ?? 0;
     blockedCounts.set(block.slotKey, current + 1);
   });
@@ -359,15 +441,37 @@ export async function allocateSlotSequence(params: {
   startAt: Date;
   maxPerSlot: number;
 }) {
-  const activeBookings = await params.tx.booking.findMany({
-    where: {
-      locationId: params.locationId,
-      slotKey: params.slotKey,
-      startAt: params.startAt,
-      status: { in: ACTIVE_STATUSES },
-    },
-    select: { slotSequence: true },
-  });
+  const txSlotBlockClient = (params.tx as any).slotBlock;
+  const blockedLinesQuery = txSlotBlockClient
+    ? txSlotBlockClient.findMany({
+        where: {
+          locationId: params.locationId,
+          slotKey: params.slotKey,
+        },
+        select: { slotLine: true },
+      })
+    : slotBlockClient
+      ? slotBlockClient.findMany({
+          where: {
+            locationId: params.locationId,
+            slotKey: params.slotKey,
+          },
+          select: { slotLine: true },
+        })
+      : Promise.resolve([]);
+
+  const [activeBookings, blockedLinesRaw] = await Promise.all([
+    params.tx.booking.findMany({
+      where: {
+        locationId: params.locationId,
+        slotKey: params.slotKey,
+        startAt: params.startAt,
+        status: { in: ACTIVE_STATUSES },
+      },
+      select: { slotSequence: true },
+    }),
+    blockedLinesQuery,
+  ]);
 
   const used = new Set(
     activeBookings
@@ -375,7 +479,14 @@ export async function allocateSlotSequence(params: {
       .filter((value): value is number => typeof value === "number")
   );
 
+  const blockedLines = new Set(
+    blockedLinesRaw
+      .map((item: { slotLine: number }) => Number(item.slotLine))
+      .filter((line: number) => Number.isInteger(line) && line >= 1 && line <= params.maxPerSlot)
+  );
+
   for (let i = 1; i <= params.maxPerSlot; i += 1) {
+    if (blockedLines.has(i)) continue;
     if (!used.has(i)) return i;
   }
 

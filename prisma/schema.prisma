@@ -23,6 +23,17 @@ enum DiscountType {
   FIXED_CENTS
 }
 
+enum EmployeeRole {
+  DETAILER
+  SUPERVISOR
+}
+
+enum ScheduleRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Location {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -343,6 +354,7 @@ model SlotBlock {
   slotLine    Int
   reason      String?
   blockedBy   String?
+  isAutoStaffBlock Boolean @default(false)
   startAt     DateTime
   endAt       DateTime
   createdAt   DateTime @default(now())
@@ -352,6 +364,98 @@ model SlotBlock {
 
   @@unique([locationId, slotKey, slotLine])
   @@index([locationId, startAt])
+  @@index([locationId, isAutoStaffBlock, startAt])
+}
+
+model Employee {
+  id        String       @id @default(cuid())
+  fullName  String
+  scheduleName String?
+  phone     String
+  email     String       @unique
+  role      EmployeeRole @default(DETAILER)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  shifts   EmployeeShift[]
+  emailLogs ScheduleEmailLog[]
+  requests ScheduleChangeRequest[]
+
+  @@index([isActive, role])
+}
+
+model EmployeeShift {
+  id           String   @id @default(cuid())
+  employeeId   String
+  locationCode String
+  shiftDate    DateTime
+  startTime    String
+  endTime      String
+  isDayOff     Boolean  @default(false)
+  notes        String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, locationCode, shiftDate, startTime, endTime])
+  @@index([locationCode, shiftDate])
+  @@index([employeeId, shiftDate])
+}
+
+model ScheduleEmailLog {
+  id           String   @id @default(cuid())
+  employeeId   String
+  locationCode String?
+  periodStart  DateTime
+  periodEnd    DateTime
+  requestToken String   @unique
+  sentBy       String?
+  sentAt       DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  requests ScheduleChangeRequest[]
+
+  @@index([employeeId, sentAt])
+}
+
+model ScheduleChangeRequest {
+  id                String                @id @default(cuid())
+  employeeId        String
+  locationCode      String?
+  requestType       String
+  requestedDate     DateTime?
+  requestedStartTime String?
+  requestedEndTime  String?
+  reason            String
+  status            ScheduleRequestStatus @default(PENDING)
+  reviewNotes       String?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  scheduleEmailLogId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  emailLog ScheduleEmailLog? @relation(fields: [scheduleEmailLogId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([employeeId, createdAt])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  passwordHash String
+  fullName     String?
+  isActive     Boolean  @default(true)
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive, login])
 }
 
 model DiscountCode {

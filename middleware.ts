@@ -13,10 +13,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const adminPassword = process.env.ADMIN_PASSWORD || "";
   const cookie = request.cookies.get(ADMIN_COOKIE)?.value;
 
-  if (!adminPassword || !(await isAdminSessionValid(cookie, adminPassword))) {
+  if (!(await isAdminSessionValid(cookie))) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/admin/login";
     loginUrl.searchParams.set("next", pathname);

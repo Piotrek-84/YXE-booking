@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ADMIN_COOKIE, createAdminSession } from "../../../../lib/auth";
+import { verifyAdminPassword } from "../../../../lib/admin-password";
+import { ADMIN_COOKIE, createAdminSession, getMasterAdminLogin } from "../../../../lib/auth";
+import { prisma } from "../../../../lib/prisma";
 
 const loginSchema = z.object({
+  login: z.string().trim().min(3).max(120),
   password: z.string().min(6),
 });
 
@@ -43,25 +46,63 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+  const login = parsed.data.login.trim().toLowerCase();
+  const password = parsed.data.password;
 
   if (!adminPassword) {
     return NextResponse.json({ error: "Admin credentials not configured" }, { status: 500 });
   }
 
-  if (parsed.data.password !== adminPassword) {
+  const attemptKey = `${ip}:${login}`;
+  const stateForLogin = attempts.get(attemptKey);
+  if (stateForLogin && stateForLogin.lockedUntil > now) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again in about 1 minute." },
+      { status: 429 }
+    );
+  }
+
+  const masterLogin = getMasterAdminLogin();
+  const isMasterLogin = login === masterLogin && password === adminPassword;
+
+  let isSecondaryAdminLogin = false;
+  if (!isMasterLogin) {
+    try {
+      const adminUser = await prisma.adminUser.findUnique({
+        where: { login },
+      });
+      if (adminUser?.isActive) {
+        isSecondaryAdminLogin = await verifyAdminPassword(password, adminUser.passwordHash);
+      }
+    } catch {
+      isSecondaryAdminLogin = false;
+    }
+  }
+
+  if (!isMasterLogin && !isSecondaryAdminLogin) {
     const nextCount = (state?.count ?? 0) + 1;
     const lockedUntil = nextCount >= MAX_ATTEMPTS ? now + LOCKOUT_MS : (state?.lockedUntil ?? 0);
     attempts.set(ip, { count: nextCount, lockedUntil });
+    const loginCount = (stateForLogin?.count ?? 0) + 1;
+    attempts.set(attemptKey, {
+      count: loginCount,
+      lockedUntil:
+        loginCount >= MAX_ATTEMPTS ? now + LOCKOUT_MS : (stateForLogin?.lockedUntil ?? 0),
+    });
     await delay(FAILED_DELAY_MS);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
   attempts.delete(ip);
+  attempts.delete(attemptKey);
   const response = NextResponse.json({ ok: true });
   response.cookies.set({
     name: ADMIN_COOKIE,
-    value: await createAdminSession(adminPassword),
+    value: await createAdminSession({
+      login,
+      role: isMasterLogin ? "MASTER" : "ADMIN",
+    }),
     httpOnly: true,
     sameSite: "lax",
     path: "/",

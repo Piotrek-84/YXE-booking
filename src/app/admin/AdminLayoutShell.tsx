@@ -19,9 +19,13 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
         ? "Maintenance Clients"
         : pathname.startsWith("/admin/blocked")
           ? "Blocked Clients"
-          : pathname === "/admin"
-            ? "Dashboard"
-            : "Admin";
+          : pathname.startsWith("/admin/schedule")
+            ? "Schedule"
+            : pathname.startsWith("/admin/admin-users")
+              ? "Admin Access"
+              : pathname === "/admin"
+                ? "Dashboard"
+                : "Admin";
 
   const navItems = [
     { href: "/admin", label: "Dashboard", active: pathname === "/admin" },
@@ -44,6 +48,16 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
       href: "/admin/maintenance",
       label: "Maintenance Clients",
       active: pathname.startsWith("/admin/maintenance"),
+    },
+    {
+      href: "/admin/schedule",
+      label: "Schedule",
+      active: pathname.startsWith("/admin/schedule"),
+    },
+    {
+      href: "/admin/admin-users",
+      label: "Admin Access",
+      active: pathname.startsWith("/admin/admin-users"),
     },
   ];
 
@@ -86,7 +100,7 @@ export default function AdminLayoutShell({ children }: { children: React.ReactNo
             </form>
           </header>
 
-          <nav className="grid grid-cols-5 gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2 lg:hidden">
+          <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-2 sm:grid-cols-3 lg:hidden">
             {navItems.map((item) => (
               <Link
                 key={item.href}

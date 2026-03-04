@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export default function AdminLoginClient() {
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,7 @@ export default function AdminLoginClient() {
     const response = await fetch("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ login, password }),
     });
 
     setLoading(false);
@@ -27,7 +28,7 @@ export default function AdminLoginClient() {
       if (response.status === 429) {
         setError("Too many attempts. Please wait about 1 minute and try again.");
       } else {
-        setError("Invalid password.");
+        setError("Invalid login or password.");
       }
       return;
     }
@@ -49,12 +50,24 @@ export default function AdminLoginClient() {
           className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-6"
         >
           <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+            Login
+            <input
+              type="text"
+              value={login}
+              onChange={(event) => setLogin(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
             Password
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm"
+              autoComplete="current-password"
               required
             />
           </label>

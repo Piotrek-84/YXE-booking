@@ -143,8 +143,8 @@ export default function ManageBookingPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-5 py-10">
-        <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      <main className="min-h-screen bg-brand-bg px-5 py-10">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-brand-text/25 bg-white p-6 text-sm text-brand-text/80">
           Loading booking...
         </div>
       </main>
@@ -153,7 +153,7 @@ export default function ManageBookingPage() {
 
   if (error || !booking) {
     return (
-      <main className="min-h-screen bg-slate-50 px-5 py-10">
+      <main className="min-h-screen bg-brand-bg px-5 py-10">
         <div className="mx-auto max-w-2xl rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
           {error || "Invalid or expired manage link."}
         </div>
@@ -162,23 +162,23 @@ export default function ManageBookingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-10">
+    <main className="min-h-screen bg-brand-bg px-5 py-10">
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
         <header>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Manage Booking</p>
-          <h1 className="text-3xl font-semibold text-slate-900">{booking.service.name}</h1>
-          <p className="text-slate-600">{booking.location.name}</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-brand-text/70">Manage Booking</p>
+          <h1 className="text-3xl font-semibold text-brand-text">{booking.service.name}</h1>
+          <p className="text-brand-text/80">{booking.location.name}</p>
         </header>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Current appointment</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">
+        <section className="rounded-2xl border border-brand-text/25 bg-white p-5">
+          <p className="text-sm text-brand-text/70">Current appointment</p>
+          <p className="mt-1 text-lg font-semibold text-brand-text">
             {formatDateTime(booking.startAt || booking.requestedDate)}
           </p>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-brand-text/80">
             Status: {booking.status.replaceAll("_", " ")}
           </p>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-brand-text/80">
             Vehicle: {booking.vehicle.year ?? ""} {booking.vehicle.make} {booking.vehicle.model}
           </p>
         </section>
@@ -195,8 +195,8 @@ export default function ManageBookingPage() {
         )}
 
         {canManage && (
-          <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5">
-            <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+          <section className="grid gap-4 rounded-2xl border border-brand-text/25 bg-white p-5">
+            <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
               Select date
               <input
                 type="date"
@@ -205,7 +205,7 @@ export default function ManageBookingPage() {
                   setSelectedDate(event.target.value);
                   setNewStartAt("");
                 }}
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className="mt-2 w-full rounded-xl border border-brand-text/25 px-3 py-2 text-sm"
               />
             </label>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -218,21 +218,23 @@ export default function ManageBookingPage() {
                     disabled={!slot.isAvailable}
                     className={`rounded-xl border px-3 py-2 text-left text-sm ${
                       newStartAt === slot.start
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-800"
+                        ? "border-brand-text bg-brand-text text-white"
+                        : "border-brand-text/25 bg-white text-brand-text"
                     } ${!slot.isAvailable ? "opacity-50" : ""}`}
                   >
                     {slot.label}
                   </button>
                 ))}
               {slots.filter((slot) => String(slot.start).slice(0, 10) === selectedDate).length ===
-                0 && <p className="text-sm text-slate-500">No available slots for this date.</p>}
+                0 && (
+                <p className="text-sm text-brand-text/70">No available slots for this date.</p>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <button
                 onClick={() => void runAction("reschedule")}
                 disabled={saving || !newStartAt}
-                className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-2xl bg-brand-text px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Reschedule"}
               </button>
@@ -248,7 +250,7 @@ export default function ManageBookingPage() {
         )}
 
         {!canManage && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+          <section className="rounded-2xl border border-brand-text/25 bg-white p-5 text-sm text-brand-text/80">
             This booking can no longer be updated online. Please contact us directly.
           </section>
         )}

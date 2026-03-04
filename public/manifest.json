@@ -4,8 +4,8 @@
   "description": "Mobile-first booking and admin dashboard for YXE and YYC detailing.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#0f172a",
+  "background_color": "#A2D8F9",
+  "theme_color": "#A2D8F9",
   "icons": [
     {
       "src": "/icons/icon-192.png",

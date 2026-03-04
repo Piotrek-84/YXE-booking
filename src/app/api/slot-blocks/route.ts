@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isAdminAuthorized } from "../../../lib/admin-auth";
 import { makeSlotKey } from "../../../lib/availability-engine";
 import { prisma } from "../../../lib/prisma";
+import { syncStaffingSlotBlocks } from "../../../lib/schedule";
 
 const slotBlockClient = (prisma as any).slotBlock;
 
@@ -151,9 +152,29 @@ export async function DELETE(request: Request) {
     );
   }
 
+  const existing = await slotBlockClient.findUnique({
+    where: { id: parsed.data.id },
+    include: {
+      location: {
+        select: { code: true },
+      },
+    },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Slot block not found" }, { status: 404 });
+  }
+
   await slotBlockClient.delete({
     where: { id: parsed.data.id },
   });
+
+  if (existing.location?.code) {
+    await syncStaffingSlotBlocks({
+      locationCode: existing.location.code,
+      dateFrom: existing.startAt,
+      dateTo: existing.startAt,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

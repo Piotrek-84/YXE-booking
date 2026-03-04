@@ -182,7 +182,7 @@ function normalizeFullName(value: string) {
 }
 
 function normalizeEmail(value: string) {
-  return toUpperFirstLetter(value.trim());
+  return value.trim().toLowerCase();
 }
 
 function validateCustomerFields(form: BookingForm) {
@@ -326,6 +326,9 @@ export default function BookingPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [termsError, setTermsError] = useState("");
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>(initialFieldErrors);
   const [slots, setSlots] = useState<
     { start: string; label: string; remainingCapacity: number; isAvailable: boolean }[]
@@ -445,12 +448,30 @@ export default function BookingPage() {
       .then((res) => res.json())
       .then((data) => {
         if (!active) return;
-        const nextSlots = data.slots ?? [];
+        const nextSlots: {
+          start: string;
+          label: string;
+          remainingCapacity: number;
+          isAvailable: boolean;
+        }[] = Array.isArray(data?.slots) ? data.slots : [];
         setSlots(nextSlots);
-        if (nextSlots.length > 0) {
-          const firstDate = String(nextSlots[0].start).slice(0, 10);
-          setSelectedSlotDate((prev) => prev || firstDate);
-        }
+        const availableSlotStarts = new Set(nextSlots.map((slot) => slot.start));
+        const availableDates: string[] = Array.from(
+          new Set(nextSlots.map((slot) => String(slot.start).slice(0, 10)))
+        );
+        const firstDate = availableDates[0] || "";
+
+        setSelectedSlotDate((prev) => {
+          if (!firstDate) return "";
+          if (!prev) return firstDate;
+          return availableDates.includes(prev) ? prev : firstDate;
+        });
+
+        setForm((prev) => {
+          if (!prev.bookingStart) return prev;
+          if (availableSlotStarts.has(prev.bookingStart)) return prev;
+          return { ...prev, bookingStart: "", slotLabel: "" };
+        });
       })
       .catch(() => {
         if (!active) return;
@@ -595,6 +616,11 @@ export default function BookingPage() {
   };
 
   const handleSubmit = async () => {
+    if (!hasAcceptedTerms) {
+      setTermsError("Please accept the terms and conditions before confirming.");
+      return;
+    }
+
     const normalizedFullName = normalizeFullName(form.fullName);
     const normalizedEmail = normalizeEmail(form.email);
     const normalizedForm = {
@@ -735,45 +761,50 @@ export default function BookingPage() {
       appliedDiscount: result?.appliedDiscount ?? null,
       estimatedDurationMins,
     };
-    sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
+    try {
+      sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
+    } catch {}
+    try {
+      localStorage.setItem("bookingDraft", JSON.stringify(draft));
+    } catch {}
     setLoading(false);
     router.push("/booking/confirmation");
   };
 
   const summaryCard = (
-    <aside className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 lg:sticky lg:top-6">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Booking summary</p>
+    <aside className="space-y-3 rounded-2xl border border-brand-text/25 bg-white p-4 text-sm text-brand-text lg:sticky lg:top-6">
+      <p className="text-xs uppercase tracking-[0.18em] text-brand-text/70">Booking summary</p>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">City</p>
+        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">City</p>
         <p className="font-semibold">{form.city ? cityLabel[form.city] : "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Service</p>
+        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Service</p>
         <p className="font-semibold">{selectedPackage?.name || "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Date & Time</p>
+        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Date & Time</p>
         <p className="font-semibold">{form.slotLabel || "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Vehicle</p>
+        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Vehicle</p>
         <p className="font-semibold">
           {form.vehicleYear || ""} {form.vehicleMake || ""} {form.vehicleModel || ""}
         </p>
         {form.vehicleSize && (
-          <p className="text-xs text-slate-500">Size: {vehicleSizeLabel[form.vehicleSize]}</p>
+          <p className="text-xs text-brand-text/70">Size: {vehicleSizeLabel[form.vehicleSize]}</p>
         )}
       </div>
       {form.notes && (
         <div>
-          <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Notes</p>
+          <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Notes</p>
           <p>{form.notes}</p>
         </div>
       )}
-      <div className="border-t border-slate-200 pt-3">
+      <div className="border-t border-brand-text/25 pt-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Subtotal</p>
-          <p className="font-semibold text-slate-900">{formatPrice(subtotalCents)}</p>
+          <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Subtotal</p>
+          <p className="font-semibold text-brand-text">{formatPrice(subtotalCents)}</p>
         </div>
         {discountCents > 0 && (
           <div className="mt-2 flex items-center justify-between">
@@ -781,41 +812,44 @@ export default function BookingPage() {
             <p className="font-semibold text-emerald-700">-{formatPrice(discountCents)}</p>
           </div>
         )}
-        <p className="mt-3 text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Total</p>
-        <p className="text-lg font-semibold text-slate-900">{formatPrice(totalCents)}</p>
-        <p className="mt-2 text-xs uppercase tracking-[0.15em] text-slate-500">Estimated Time</p>
-        <p className="font-semibold text-slate-900">{formatDuration(estimatedDurationMins)}</p>
+        <p className="mt-3 text-xs uppercase tracking-[0.15em] text-brand-text/70">
+          Estimated Total
+        </p>
+        <p className="text-lg font-semibold text-brand-text">{formatPrice(totalCents)}</p>
+        <p className="mt-2 text-xs uppercase tracking-[0.15em] text-brand-text/70">
+          Estimated Time
+        </p>
+        <p className="font-semibold text-brand-text">{formatDuration(estimatedDurationMins)}</p>
       </div>
     </aside>
   );
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-10">
+    <main className="min-h-screen bg-brand-bg px-5 py-10">
       <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
           <header className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Booking</p>
-            <h1 className="text-3xl font-semibold text-slate-900">Book your detail</h1>
-            <p className="text-slate-600">
-              Select an available time slot to confirm your appointment.
+            <h1 className="text-3xl font-semibold text-brand-text">Book your detail</h1>
+            <p className="text-brand-text/80">
+              Start by selecting the vehicle you will be bringing in.
             </p>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-brand-text/70">
               Need help? Call/Text{" "}
-              <a href="tel:+13067005599" className="font-semibold text-slate-700 underline">
+              <a href="tel:+13067005599" className="font-semibold text-brand-text underline">
                 +1 306 700 5599
               </a>{" "}
               or email{" "}
               <a
                 href="mailto:contact@yxequickclean.ca"
-                className="font-semibold text-slate-700 underline"
+                className="font-semibold text-brand-text underline"
               >
                 contact@yxequickclean.ca
               </a>
             </p>
           </header>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-slate-400">
+          <div className="rounded-2xl border border-brand-text/25 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-brand-text/60">
               <span>
                 Step {step + 1} of {steps.length}
               </span>
@@ -829,18 +863,18 @@ export default function BookingPage() {
                 <div key={label} className="space-y-1">
                   <div
                     className={`h-2 rounded-full ${
-                      index <= step ? "bg-slate-900" : "bg-slate-200"
+                      index <= step ? "bg-brand-text" : "bg-brand-text/25"
                     }`}
                   />
-                  <p className="truncate text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                  <p className="truncate text-[10px] uppercase tracking-[0.12em] text-brand-text/60">
                     {label}
                   </p>
                 </div>
               ))}
             </div>
-            <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+            <div className="mt-3 h-2 w-full rounded-full bg-brand-text/10">
               <div
-                className="h-2 rounded-full bg-slate-900 transition-all"
+                className="h-2 rounded-full bg-brand-text transition-all"
                 style={{ width: `${((step + 1) / steps.length) * 100}%` }}
               />
             </div>
@@ -882,8 +916,8 @@ export default function BookingPage() {
                     key={category.id}
                     className={`rounded-2xl border px-5 py-4 text-left transition ${
                       form.category === category.id
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-800"
+                        ? "border-brand-text bg-brand-text text-white"
+                        : "border-brand-text/25 bg-white text-brand-text"
                     }`}
                     onClick={() =>
                       setForm((prev) => ({
@@ -900,15 +934,15 @@ export default function BookingPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                <p className="text-sm font-semibold text-slate-700">Choose a service</p>
+                <p className="text-sm font-semibold text-brand-text">Choose a service</p>
                 <div className="grid gap-3">
                   {filteredPackages.map((pkg) => (
                     <button
                       key={pkg.id}
                       className={`rounded-2xl border px-5 py-4 text-left transition ${
                         form.packageId === pkg.id
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-800"
+                          ? "border-brand-text bg-brand-text text-white"
+                          : "border-brand-text/25 bg-white text-brand-text"
                       }`}
                       onClick={() => {
                         setForm((prev) => ({ ...prev, packageId: pkg.id }));
@@ -929,7 +963,7 @@ export default function BookingPage() {
                     </button>
                   ))}
                   {form.category === "" && (
-                    <p className="text-sm text-slate-500">Select a category to see pricing.</p>
+                    <p className="text-sm text-brand-text/70">Select a category to see pricing.</p>
                   )}
                 </div>
               </div>
@@ -947,8 +981,8 @@ export default function BookingPage() {
                       key={addon.id}
                       className={`rounded-2xl border px-5 py-4 text-left transition ${
                         selected
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-800"
+                          ? "border-brand-text bg-brand-text text-white"
+                          : "border-brand-text/25 bg-white text-brand-text"
                       }`}
                       onClick={() => toggleAddOn(addon.id)}
                     >
@@ -968,8 +1002,8 @@ export default function BookingPage() {
                 <button
                   className={`rounded-2xl border px-5 py-4 text-left transition ${
                     form.addOnIds.length === 0
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-white text-slate-800"
+                      ? "border-brand-text bg-brand-text text-white"
+                      : "border-brand-text/25 bg-white text-brand-text"
                   }`}
                   onClick={() => setForm((prev) => ({ ...prev, addOnIds: [] }))}
                 >
@@ -979,7 +1013,7 @@ export default function BookingPage() {
                   <p className="mt-1 text-sm opacity-80">Continue without any add-ons.</p>
                 </button>
                 {filteredAddOns.length === 0 && (
-                  <p className="text-sm text-slate-500">No add-ons available yet.</p>
+                  <p className="text-sm text-brand-text/70">No add-ons available yet.</p>
                 )}
               </div>
             </section>
@@ -988,30 +1022,30 @@ export default function BookingPage() {
           {step === 3 && (
             <section className="space-y-4">
               <h2 className="text-lg font-semibold">Choose a time slot</h2>
-              <p className="text-sm text-slate-600">
-                Select an available time slot to confirm your appointment.
+              <p className="text-sm text-brand-text/80">
+                Start by selecting the vehicle you will be bringing in.
               </p>
               {slotsError && <p className="text-sm text-rose-500">{slotsError}</p>}
               {slotsLoading && (
                 <div className="grid gap-3">
-                  <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+                  <div className="h-24 animate-pulse rounded-2xl border border-brand-text/25 bg-white" />
                   <div className="grid gap-2 md:grid-cols-2">
                     {Array.from({ length: 6 }).map((_, index) => (
                       <div
                         key={index}
-                        className="h-12 animate-pulse rounded-xl border border-slate-200 bg-white"
+                        className="h-12 animate-pulse rounded-xl border border-brand-text/25 bg-white"
                       />
                     ))}
                   </div>
                 </div>
               )}
               {!slotsLoading && slots.length === 0 && (
-                <p className="text-sm text-slate-500">No slots available right now.</p>
+                <p className="text-sm text-brand-text/70">No slots available right now.</p>
               )}
               {!slotsLoading && slots.length > 0 && (
                 <div className="grid gap-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <div className="rounded-2xl border border-brand-text/25 bg-white p-4">
+                    <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                       Select Date
                     </label>
                     <input
@@ -1024,17 +1058,19 @@ export default function BookingPage() {
                         setSelectedSlotDate(nextDate);
                         setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
                       }}
-                      className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      className="mt-2 w-full rounded-xl border border-brand-text/25 px-3 py-2 text-sm"
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-700">
+                  <div className="rounded-2xl border border-brand-text/25 bg-white p-4">
+                    <p className="text-sm font-semibold text-brand-text">
                       {selectedSlotDate || "Choose a date"}
                     </p>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       {slotsForSelectedDate.length === 0 && (
-                        <p className="text-sm text-slate-500">No times available for this date.</p>
+                        <p className="text-sm text-brand-text/70">
+                          No times available for this date.
+                        </p>
                       )}
                       {slotsForSelectedDate.map((slot) => (
                         <button
@@ -1050,9 +1086,9 @@ export default function BookingPage() {
                           disabled={!slot.isAvailable}
                           className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
                             form.bookingStart === slot.start
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-800"
-                          } ${!slot.isAvailable ? "cursor-not-allowed opacity-50" : "hover:border-slate-300"}`}
+                              ? "border-brand-text bg-brand-text text-white"
+                              : "border-brand-text/25 bg-white text-brand-text"
+                          } ${!slot.isAvailable ? "cursor-not-allowed opacity-50" : "hover:border-brand-text/35"}`}
                         >
                           <span>{slot.label.split(" — ")[1]}</span>
                         </button>
@@ -1067,7 +1103,7 @@ export default function BookingPage() {
           {step === 4 && (
             <section className="space-y-4">
               <h2 className="text-lg font-semibold">Customer + review</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-brand-text/70">
                 Fields marked * (required) are needed to complete booking.
               </p>
               {form.submitError && (
@@ -1075,9 +1111,9 @@ export default function BookingPage() {
                   {form.submitError}
                 </p>
               )}
-              <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="grid gap-4 rounded-2xl border border-brand-text/25 bg-white p-5">
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Full Name * (required)
                   </label>
                   <input
@@ -1097,7 +1133,7 @@ export default function BookingPage() {
                       })
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.fullName ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.fullName ? "border-rose-400 bg-rose-50" : "border-brand-text/25"
                     }`}
                     placeholder="Alex Johnson"
                     required
@@ -1109,7 +1145,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Phone * (required)
                   </label>
                   <input
@@ -1124,7 +1160,7 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.phone ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.phone ? "border-rose-400 bg-rose-50" : "border-brand-text/25"
                     }`}
                     placeholder="3065550199"
                     required
@@ -1136,7 +1172,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Email * (required)
                   </label>
                   <input
@@ -1156,7 +1192,7 @@ export default function BookingPage() {
                       })
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.email ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.email ? "border-rose-400 bg-rose-50" : "border-brand-text/25"
                     }`}
                     placeholder="alex@email.com"
                     required
@@ -1168,7 +1204,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Vehicle Year (optional)
                   </label>
                   <input
@@ -1183,7 +1219,9 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.vehicleYear ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.vehicleYear
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-brand-text/25"
                     }`}
                     placeholder="2020"
                   />
@@ -1192,7 +1230,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Make * (required)
                   </label>
                   <input
@@ -1207,7 +1245,9 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.vehicleMake ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.vehicleMake
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-brand-text/25"
                     }`}
                     placeholder="Toyota"
                     required
@@ -1219,7 +1259,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Model * (required)
                   </label>
                   <input
@@ -1234,7 +1274,9 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.vehicleModel ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.vehicleModel
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-brand-text/25"
                     }`}
                     placeholder="RAV4"
                     required
@@ -1246,7 +1288,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Trim (optional)
                   </label>
                   <input
@@ -1261,7 +1303,9 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.vehicleTrim ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.vehicleTrim
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-brand-text/25"
                     }`}
                     placeholder="XLE"
                   />
@@ -1270,7 +1314,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Color (optional)
                   </label>
                   <input
@@ -1285,7 +1329,9 @@ export default function BookingPage() {
                       }))
                     }
                     className={`rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.vehicleColor ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.vehicleColor
+                        ? "border-rose-400 bg-rose-50"
+                        : "border-brand-text/25"
                     }`}
                     placeholder="Midnight Blue"
                   />
@@ -1294,7 +1340,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Square Gift Card Number (optional)
                   </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -1314,7 +1360,7 @@ export default function BookingPage() {
                       className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
                         fieldErrors.giftCardNumber
                           ? "border-rose-400 bg-rose-50"
-                          : "border-slate-200"
+                          : "border-brand-text/25"
                       }`}
                       placeholder="Enter gift card number"
                       aria-invalid={Boolean(fieldErrors.giftCardNumber)}
@@ -1323,7 +1369,7 @@ export default function BookingPage() {
                       type="button"
                       onClick={() => void verifyGiftCard()}
                       disabled={giftCardCheck.status === "checking"}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                      className="rounded-xl border border-brand-text/25 px-4 py-2 text-sm font-semibold text-brand-text disabled:opacity-60"
                     >
                       {giftCardCheck.status === "checking" ? "Verifying..." : "Verify"}
                     </button>
@@ -1353,7 +1399,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Discount Code (optional)
                   </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -1371,7 +1417,9 @@ export default function BookingPage() {
                         }))
                       }
                       className={`flex-1 rounded-xl border px-3 py-2 text-sm ${
-                        fieldErrors.discountCode ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                        fieldErrors.discountCode
+                          ? "border-rose-400 bg-rose-50"
+                          : "border-brand-text/25"
                       }`}
                       placeholder="Enter promo code"
                       aria-invalid={Boolean(fieldErrors.discountCode)}
@@ -1380,7 +1428,7 @@ export default function BookingPage() {
                       type="button"
                       onClick={() => void verifyDiscountCode()}
                       disabled={discountCheck.status === "checking"}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+                      className="rounded-xl border border-brand-text/25 px-4 py-2 text-sm font-semibold text-brand-text disabled:opacity-60"
                     >
                       {discountCheck.status === "checking" ? "Applying..." : "Apply"}
                     </button>
@@ -1403,7 +1451,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Notes (optional)
                   </label>
                   <textarea
@@ -1418,7 +1466,7 @@ export default function BookingPage() {
                       }))
                     }
                     className={`min-h-[90px] rounded-xl border px-3 py-2 text-sm ${
-                      fieldErrors.notes ? "border-rose-400 bg-rose-50" : "border-slate-200"
+                      fieldErrors.notes ? "border-rose-400 bg-rose-50" : "border-brand-text/25"
                     }`}
                     placeholder="Anything we should know?"
                   />
@@ -1427,20 +1475,20 @@ export default function BookingPage() {
                   )}
                 </div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
+              <div className="rounded-2xl border border-brand-text/25 bg-white p-5 text-sm text-brand-text">
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">City</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">City</p>
                   <p className="text-base font-semibold">{form.city ? cityLabel[form.city] : ""}</p>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Service</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Service</p>
                   <p className="text-base font-semibold">{selectedPackage?.name}</p>
-                  <p className="text-slate-500">{selectedPackage?.description}</p>
+                  <p className="text-brand-text/70">{selectedPackage?.description}</p>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Add-ons</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Add-ons</p>
                   {selectedAddOns.length === 0 ? (
-                    <p className="text-slate-500">None</p>
+                    <p className="text-brand-text/70">None</p>
                   ) : (
                     selectedAddOns.map((addon) => (
                       <p key={addon.id} className="text-base">
@@ -1450,12 +1498,16 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Date & Time</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                    Date & Time
+                  </p>
                   <p className="text-base font-semibold">{form.slotLabel}</p>
                 </div>
                 {giftCardCheck.status === "valid" && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Gift Card</p>
+                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                      Gift Card
+                    </p>
                     <p className="text-base font-semibold">
                       Verified ending in {giftCardCheck.last4 || "----"}
                     </p>
@@ -1463,7 +1515,7 @@ export default function BookingPage() {
                 )}
                 {discountCents > 0 && discountCheck.status === "valid" && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                       Discount Code
                     </p>
                     <p className="text-base font-semibold">
@@ -1473,12 +1525,12 @@ export default function BookingPage() {
                   </div>
                 )}
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Vehicle</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Vehicle</p>
                   <p className="text-base font-semibold">
                     {form.vehicleYear} {form.vehicleMake} {form.vehicleModel}
                   </p>
                   {form.vehicleSize && (
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-brand-text/70">
                       Size: {vehicleSizeLabel[form.vehicleSize]}
                     </p>
                   )}
@@ -1487,13 +1539,13 @@ export default function BookingPage() {
                 </div>
                 {form.notes && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Notes</p>
+                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Notes</p>
                     <p>{form.notes}</p>
                   </div>
                 )}
-                <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Subtotal</p>
-                  <p className="text-base font-semibold text-slate-900">
+                <div className="mt-6 flex items-center justify-between border-t border-brand-text/25 pt-4">
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Subtotal</p>
+                  <p className="text-base font-semibold text-brand-text">
                     {formatPrice(subtotalCents)}
                   </p>
                 </div>
@@ -1506,32 +1558,57 @@ export default function BookingPage() {
                   </div>
                 )}
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Estimated Total
                   </p>
-                  <p className="text-lg font-semibold text-slate-900">{formatPrice(totalCents)}</p>
+                  <p className="text-lg font-semibold text-brand-text">{formatPrice(totalCents)}</p>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.15em] text-slate-500">
+                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
                     Estimated Time
                   </p>
-                  <p className="text-base font-semibold text-slate-900">
+                  <p className="text-base font-semibold text-brand-text">
                     {formatDuration(estimatedDurationMins)}
                   </p>
                 </div>
               </div>
+              <div className="rounded-2xl border border-brand-text/25 bg-white p-5 text-sm text-brand-text">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={hasAcceptedTerms}
+                    onChange={(event) => {
+                      setHasAcceptedTerms(event.target.checked);
+                      if (event.target.checked) setTermsError("");
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-brand-text/30"
+                  />
+                  <span>
+                    I have read and agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="font-semibold underline"
+                    >
+                      terms and conditions
+                    </button>
+                    .
+                  </span>
+                </label>
+                {termsError && <p className="mt-2 text-sm text-rose-600">{termsError}</p>}
+              </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
-                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"
+                  className="flex-1 rounded-2xl border border-brand-text/25 px-4 py-3 text-sm font-semibold text-brand-text"
                   onClick={goBack}
                   disabled={loading}
                 >
                   Back
                 </button>
                 <button
-                  className="flex-[2] rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-[2] rounded-2xl bg-brand-text px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || !hasAcceptedTerms}
                 >
                   {loading ? "Confirming..." : "Confirm booking"}
                 </button>
@@ -1540,9 +1617,11 @@ export default function BookingPage() {
           )}
 
           {showRunningTotal && (
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.15em] text-slate-500">Current total</p>
-              <p className="text-base font-semibold text-slate-900">{formatPrice(totalCents)}</p>
+            <div className="flex items-center justify-between rounded-2xl border border-brand-text/25 bg-white px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                Current total
+              </p>
+              <p className="text-base font-semibold text-brand-text">{formatPrice(totalCents)}</p>
             </div>
           )}
 
@@ -1550,7 +1629,7 @@ export default function BookingPage() {
             <div className="flex items-center gap-3">
               {step > 0 && (
                 <button
-                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
+                  className="flex-1 rounded-2xl border border-brand-text/25 px-4 py-3 text-sm font-semibold text-brand-text/80"
                   onClick={goBack}
                 >
                   Back
@@ -1558,7 +1637,7 @@ export default function BookingPage() {
               )}
               {step === 2 && (
                 <button
-                  className="flex-[1.5] rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-[1.5] rounded-2xl bg-brand-text px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={goNext}
                   disabled={!canContinue}
                 >
@@ -1570,6 +1649,80 @@ export default function BookingPage() {
         </div>
         <div className="hidden lg:block">{summaryCard}</div>
       </div>
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 text-sm text-brand-text shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-xl font-semibold">Terms & Conditions</h2>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="rounded-xl border border-brand-text/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="font-semibold">Cancellation policy</p>
+                <p className="text-brand-text/80">
+                  We require 24 hours notice of a cancellation (you can cancel directly through your
+                  email confirmation or call/text us at #306-700-5599). If you cancel with less than
+                  24 hours notice we will require pre-payment before your next service. Pre-payment
+                  can be made over the phone via credit card or in-shop by credit card, debit or
+                  cash.
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">Excessively dirty</p>
+                <p className="text-brand-text/80">
+                  We reserve the right to charge extra if there is excessive pet hair, or if the
+                  vehicle is excessively dirty. Not sure if you fit this category? Check out our
+                  blog post (with photos) here:{" "}
+                  <a
+                    href="https://yxequickclean.ca/blog/f/what-does-excessively-dirty-mean"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold underline"
+                  >
+                    https://yxequickclean.ca/blog/f/what-does-excessively-dirty-mean
+                  </a>
+                  .
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">Late Arrival</p>
+                <p className="text-brand-text/80">
+                  Please know that due to the high volume of clientele we see on a daily basis that
+                  if you are late for your appointment we may not be able to complete everything
+                  listed in the service you chose. You can easily cancel or rebook your appointment
+                  by clicking on manage my appointment at the bottom of your confirmation email.
+                  Please arrive 10 minutes before your scheduled appointment so we can take a look
+                  at your vehicle with you, answer any questions you may have and start cleaning at
+                  your appointment time.
+                </p>
+              </div>
+              <div>
+                <p className="text-brand-text/80">
+                  If you would like the interior of your centre console and glovebox cleaned please
+                  completely empty these areas. They will not be cleaned unless they are completely
+                  empty. We do not want to throw out anything that is important and generally this
+                  is where people store their important items/documents. Please feel free to leave
+                  any garbage from these areas on the floor of your vehicle and we will dispose of
+                  it.
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold">Parking</p>
+                <p className="text-brand-text/80">
+                  You are responsible for the parking charges incurred while in the Midtown parking
+                  lot. Please make sure you hang on to your parking ticket.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

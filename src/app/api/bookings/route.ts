@@ -380,121 +380,127 @@ export async function POST(request: Request) {
     }>
   > => {
     try {
-      const booking = await prisma.$transaction(async (tx) => {
-        const slotSequence = await allocateSlotSequence({
-          tx,
-          locationId: location.id,
-          slotKey: selectedSlot.slotKey,
-          startAt: bookingStartDate,
-          maxPerSlot: capacity,
-        });
-
-        const customer = await tx.customer.create({
-          data: {
-            fullName: data.customer.fullName,
-            phone: normalizedPhone,
-            email: normalizedEmail,
-            notes: data.notes || null,
-          },
-        });
-
-        const vehicle = await tx.vehicle.create({
-          data: {
-            customerId: customer.id,
-            size: data.vehicleSize,
-            year: data.vehicle.year,
-            make: data.vehicle.make,
-            model: data.vehicle.model,
-            trim: data.vehicle.trim || null,
-            color: data.vehicle.color || null,
-            plate: data.vehicle.plate || null,
-          },
-        });
-
-        const manageToken = createClientManageToken();
-        const tokenExpiresAt = getTokenExpiry(30);
-        const endAt = new Date(selectedSlot.endAt);
-        const bookingIntakeAnswers = {
-          ...(data.intakeAnswers || {}),
-          ...(appliedDiscount
-            ? {
-                discountCode: {
-                  code: appliedDiscount.code,
-                  discountType: appliedDiscount.discountType,
-                  percentOff: appliedDiscount.percentOff,
-                  fixedAmountCents: appliedDiscount.fixedAmountCents,
-                  amountOffCents: appliedDiscount.amountOffCents,
-                  subtotalCents,
-                  finalTotalCents: appliedDiscount.finalTotalCents,
-                },
-              }
-            : {}),
-        };
-
-        const booking = await tx.booking.create({
-          data: {
+      const booking = await prisma.$transaction(
+        async (tx) => {
+          const slotSequence = await allocateSlotSequence({
+            tx,
             locationId: location.id,
-            customerId: customer.id,
-            vehicleId: vehicle.id,
-            serviceId: service.id,
-            customerName: customer.fullName,
-            customerPhone: customer.phone,
-            customerEmail: customer.email,
-            serviceName: service.name,
-            durationMinutes: service.durationMinutes,
-            bufferMinutes: service.bufferMinutes,
-            intakeAnswers: bookingIntakeAnswers,
-            clientManageToken: manageToken,
-            tokenExpiresAt,
-            updatedBy: actor,
-            status: "CONFIRMED",
-            ...(clientDeviceHash ? { clientDeviceHash } : {}),
-            bookingStartDateTime: bookingStartDate,
-            startAt: bookingStartDate,
-            endAt,
             slotKey: selectedSlot.slotKey,
-            slotSequence,
-            requestedDate: data.requestedDate ? new Date(data.requestedDate) : bookingStartDate,
-            requestedWindow: data.requestedWindow || selectedSlot.label,
-            customerNotes: data.notes || null,
-            addOns: {
-              createMany: {
-                data: addOnIds.map((addOnId) => ({ addOnId })),
+            startAt: bookingStartDate,
+            maxPerSlot: capacity,
+          });
+
+          const customer = await tx.customer.create({
+            data: {
+              fullName: data.customer.fullName,
+              phone: normalizedPhone,
+              email: normalizedEmail,
+              notes: data.notes || null,
+            },
+          });
+
+          const vehicle = await tx.vehicle.create({
+            data: {
+              customerId: customer.id,
+              size: data.vehicleSize,
+              year: data.vehicle.year,
+              make: data.vehicle.make,
+              model: data.vehicle.model,
+              trim: data.vehicle.trim || null,
+              color: data.vehicle.color || null,
+              plate: data.vehicle.plate || null,
+            },
+          });
+
+          const manageToken = createClientManageToken();
+          const tokenExpiresAt = getTokenExpiry(30);
+          const endAt = new Date(selectedSlot.endAt);
+          const bookingIntakeAnswers = {
+            ...(data.intakeAnswers || {}),
+            ...(appliedDiscount
+              ? {
+                  discountCode: {
+                    code: appliedDiscount.code,
+                    discountType: appliedDiscount.discountType,
+                    percentOff: appliedDiscount.percentOff,
+                    fixedAmountCents: appliedDiscount.fixedAmountCents,
+                    amountOffCents: appliedDiscount.amountOffCents,
+                    subtotalCents,
+                    finalTotalCents: appliedDiscount.finalTotalCents,
+                  },
+                }
+              : {}),
+          };
+
+          const booking = await tx.booking.create({
+            data: {
+              locationId: location.id,
+              customerId: customer.id,
+              vehicleId: vehicle.id,
+              serviceId: service.id,
+              customerName: customer.fullName,
+              customerPhone: customer.phone,
+              customerEmail: customer.email,
+              serviceName: service.name,
+              durationMinutes: service.durationMinutes,
+              bufferMinutes: service.bufferMinutes,
+              intakeAnswers: bookingIntakeAnswers,
+              clientManageToken: manageToken,
+              tokenExpiresAt,
+              updatedBy: actor,
+              status: "CONFIRMED",
+              ...(clientDeviceHash ? { clientDeviceHash } : {}),
+              bookingStartDateTime: bookingStartDate,
+              startAt: bookingStartDate,
+              endAt,
+              slotKey: selectedSlot.slotKey,
+              slotSequence,
+              requestedDate: data.requestedDate ? new Date(data.requestedDate) : bookingStartDate,
+              requestedWindow: data.requestedWindow || selectedSlot.label,
+              customerNotes: data.notes || null,
+              addOns: {
+                createMany: {
+                  data: addOnIds.map((addOnId) => ({ addOnId })),
+                },
               },
             },
-          },
-          include: {
-            addOns: { include: { addOn: true } },
-            customer: true,
-            vehicle: true,
-            service: true,
-            location: true,
-          },
-        });
-
-        if (appliedDiscount) {
-          await tx.discountCode.update({
-            where: { id: appliedDiscount.id },
-            data: { redemptionCount: { increment: 1 } },
-          });
-        }
-
-        await tx.bookingAudit.create({
-          data: {
-            bookingId: booking.id,
-            action: "BOOKING_CREATED",
-            actor,
-            details: {
-              startAt: booking.startAt,
-              status: booking.status,
-              slotKey: booking.slotKey,
-              slotSequence: booking.slotSequence,
+            include: {
+              addOns: { include: { addOn: true } },
+              customer: true,
+              vehicle: true,
+              service: true,
+              location: true,
             },
-          },
-        });
+          });
 
-        return booking;
-      });
+          if (appliedDiscount) {
+            await tx.discountCode.update({
+              where: { id: appliedDiscount.id },
+              data: { redemptionCount: { increment: 1 } },
+            });
+          }
+
+          await tx.bookingAudit.create({
+            data: {
+              bookingId: booking.id,
+              action: "BOOKING_CREATED",
+              actor,
+              details: {
+                startAt: booking.startAt,
+                status: booking.status,
+                slotKey: booking.slotKey,
+                slotSequence: booking.slotSequence,
+              },
+            },
+          });
+
+          return booking;
+        },
+        {
+          maxWait: 10_000,
+          timeout: 20_000,
+        }
+      );
 
       return booking;
     } catch (error) {
