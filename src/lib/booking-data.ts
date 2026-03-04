@@ -9,6 +9,7 @@ export type PackageOption = {
   durationMins: number;
   category: "INT_EXT" | "INT_ONLY" | "EXT_ONLY";
   vehicleSize: "car" | "suv" | "truck" | "large_suv";
+  tagLabel?: string;
 };
 
 export type AddOnOption = {
@@ -19,6 +20,7 @@ export type AddOnOption = {
   priceCents: number;
   durationMins: number;
   vehicleSize?: "car" | "suv" | "truck" | "large_suv";
+  tagLabel?: string;
 };
 
 export const cities = [
@@ -36,6 +38,7 @@ export const packages: PackageOption[] = [
     durationMins: 179,
     category: "INT_EXT",
     vehicleSize: "large_suv",
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-int-ext-suv",
@@ -46,6 +49,7 @@ export const packages: PackageOption[] = [
     durationMins: 119,
     category: "INT_EXT",
     vehicleSize: "suv",
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-int-ext-truck",
@@ -56,6 +60,7 @@ export const packages: PackageOption[] = [
     durationMins: 119,
     category: "INT_EXT",
     vehicleSize: "truck",
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-int-ext-car",
@@ -66,6 +71,7 @@ export const packages: PackageOption[] = [
     durationMins: 119,
     category: "INT_EXT",
     vehicleSize: "car",
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-ext-minivan",
@@ -159,6 +165,82 @@ export const packages: PackageOption[] = [
 
 export const addOns: AddOnOption[] = [
   {
+    id: "yxe-ceramic-fabric-protectant-car",
+    city: "YXE",
+    name: "Ceramic Fabric Protectant",
+    description: "Ceramic protectant for fabric surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "car",
+  },
+  {
+    id: "yxe-ceramic-fabric-protectant-suv",
+    city: "YXE",
+    name: "Ceramic Fabric Protectant",
+    description: "Ceramic protectant for fabric surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "suv",
+  },
+  {
+    id: "yxe-ceramic-fabric-protectant-truck",
+    city: "YXE",
+    name: "Ceramic Fabric Protectant",
+    description: "Ceramic protectant for fabric surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "truck",
+  },
+  {
+    id: "yxe-ceramic-fabric-protectant-large-suv",
+    city: "YXE",
+    name: "Ceramic Fabric Protectant",
+    description: "Ceramic protectant for fabric surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "large_suv",
+  },
+  {
+    id: "yxe-ceramic-leather-plastic-protectant-car",
+    city: "YXE",
+    name: "Ceramic Leather and Plastic Protectant",
+    description: "Ceramic protectant for leather and plastic surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "car",
+    tagLabel: "Most Popular",
+  },
+  {
+    id: "yxe-ceramic-leather-plastic-protectant-suv",
+    city: "YXE",
+    name: "Ceramic Leather and Plastic Protectant",
+    description: "Ceramic protectant for leather and plastic surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "suv",
+    tagLabel: "Most Popular",
+  },
+  {
+    id: "yxe-ceramic-leather-plastic-protectant-truck",
+    city: "YXE",
+    name: "Ceramic Leather and Plastic Protectant",
+    description: "Ceramic protectant for leather and plastic surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "truck",
+    tagLabel: "Most Popular",
+  },
+  {
+    id: "yxe-ceramic-leather-plastic-protectant-large-suv",
+    city: "YXE",
+    name: "Ceramic Leather and Plastic Protectant",
+    description: "Ceramic protectant for leather and plastic surfaces.",
+    priceCents: 6995,
+    durationMins: 30,
+    vehicleSize: "large_suv",
+    tagLabel: "Most Popular",
+  },
+  {
     id: "yxe-pet-hair",
     city: "YXE",
     name: "Pet Hair Removal",
@@ -185,10 +267,11 @@ export const addOns: AddOnOption[] = [
   {
     id: "yxe-paint-sealant",
     city: "YXE",
-    name: "Paint Sealant Application",
+    name: "Ceramic Paint Sealant Protection",
     description: "Ceramic paint sealant for 6+ months of protection.",
     priceCents: 6995,
     durationMins: 45,
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-wax",
@@ -237,7 +320,7 @@ export const addOns: AddOnOption[] = [
     name: "Ozonator Treatment",
     description: "Aggressive odor treatment for smoke, skunk, or funk.",
     priceCents: 7000,
-    durationMins: 45,
+    durationMins: 60,
   },
   {
     id: "yxe-windshield-ceramic",
@@ -246,6 +329,7 @@ export const addOns: AddOnOption[] = [
     description: "Hydrophobic ceramic coating for windshield.",
     priceCents: 9900,
     durationMins: 30,
+    tagLabel: "Most Popular",
   },
   {
     id: "yxe-engine-bay",

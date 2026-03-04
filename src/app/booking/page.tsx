@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import ServiceTag from "../../components/ServiceTag";
 import VehicleSizeCard from "../../components/VehicleSizeCard";
 import {
   addOns,
@@ -20,9 +21,9 @@ import { normalizePhone } from "../../lib/phone";
 const steps = ["Vehicle Size", "Category", "Add-ons", "Date & Time", "Customer & Review"];
 
 const categoryOptions = [
-  { id: "INT_EXT", label: "Interior & Exterior" },
-  { id: "INT_ONLY", label: "Interior Only" },
-  { id: "EXT_ONLY", label: "Exterior Only" },
+  { id: "INT_EXT", label: "Interior & Exterior", tagLabel: "Most Popular" },
+  { id: "INT_ONLY", label: "Interior Only", tagLabel: "" },
+  { id: "EXT_ONLY", label: "Exterior Only", tagLabel: "" },
 ] as const;
 
 const vehicleSizeOptions = [
@@ -353,12 +354,24 @@ export default function BookingPage() {
   const filteredAddOns = useMemo(() => {
     if (!form.city) return [];
     const matchSize = form.vehicleSize === "minivan" ? "large_suv" : form.vehicleSize;
-    return addOns.filter((item) => {
-      if (item.city !== form.city) return false;
-      if (!item.vehicleSize) return true;
-      if (!matchSize) return false;
-      return item.vehicleSize === matchSize;
-    });
+    return addOns
+      .filter((item) => {
+        if (item.city !== form.city) return false;
+        if (!item.vehicleSize) return true;
+        if (!matchSize) return false;
+        return item.vehicleSize === matchSize;
+      })
+      .sort((a, b) => {
+        const getPriority = (id: string) => {
+          if (id === "yxe-paint-sealant") return 0;
+          if (id === "yxe-windshield-ceramic") return 1;
+          if (id.startsWith("yxe-ceramic-leather-plastic-protectant")) return 2;
+          return 3;
+        };
+        const aPriority = getPriority(a.id);
+        const bPriority = getPriority(b.id);
+        return aPriority - bPriority;
+      });
   }, [form.city, form.vehicleSize]);
 
   const selectedPackage = packages.find((item) => item.id === form.packageId);
@@ -773,50 +786,50 @@ export default function BookingPage() {
 
   const summaryCard = (
     <aside className="space-y-3 rounded-2xl border border-brand-text/25 bg-white p-4 text-sm text-brand-text lg:sticky lg:top-6">
-      <p className="text-xs uppercase tracking-[0.18em] text-brand-text/70">Booking summary</p>
+      <p className="text-[0.86rem] uppercase tracking-[0.18em] text-brand-text/85">Booking summary</p>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">City</p>
+        <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">City</p>
         <p className="font-semibold">{form.city ? cityLabel[form.city] : "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Service</p>
+        <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Service</p>
         <p className="font-semibold">{selectedPackage?.name || "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Date & Time</p>
+        <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Date & Time</p>
         <p className="font-semibold">{form.slotLabel || "Not selected"}</p>
       </div>
       <div>
-        <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Vehicle</p>
+        <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Vehicle</p>
         <p className="font-semibold">
           {form.vehicleYear || ""} {form.vehicleMake || ""} {form.vehicleModel || ""}
         </p>
         {form.vehicleSize && (
-          <p className="text-xs text-brand-text/70">Size: {vehicleSizeLabel[form.vehicleSize]}</p>
+          <p className="text-[0.86rem] text-brand-text/85">Size: {vehicleSizeLabel[form.vehicleSize]}</p>
         )}
       </div>
       {form.notes && (
         <div>
-          <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Notes</p>
+          <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Notes</p>
           <p>{form.notes}</p>
         </div>
       )}
       <div className="border-t border-brand-text/25 pt-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Subtotal</p>
+          <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Subtotal</p>
           <p className="font-semibold text-brand-text">{formatPrice(subtotalCents)}</p>
         </div>
         {discountCents > 0 && (
           <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">Discount</p>
+            <p className="text-[0.86rem] uppercase tracking-[0.15em] text-emerald-700">Discount</p>
             <p className="font-semibold text-emerald-700">-{formatPrice(discountCents)}</p>
           </div>
         )}
-        <p className="mt-3 text-xs uppercase tracking-[0.15em] text-brand-text/70">
+        <p className="mt-3 text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
           Estimated Total
         </p>
         <p className="text-lg font-semibold text-brand-text">{formatPrice(totalCents)}</p>
-        <p className="mt-2 text-xs uppercase tracking-[0.15em] text-brand-text/70">
+        <p className="mt-2 text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
           Estimated Time
         </p>
         <p className="font-semibold text-brand-text">{formatDuration(estimatedDurationMins)}</p>
@@ -830,10 +843,10 @@ export default function BookingPage() {
         <div className="flex min-w-0 flex-col gap-6">
           <header className="space-y-3">
             <h1 className="text-3xl font-semibold text-brand-text">Book your detail</h1>
-            <p className="text-brand-text/80">
+            <p className="text-brand-text/85">
               Start by selecting the vehicle you will be bringing in.
             </p>
-            <p className="text-sm text-brand-text/70">
+            <p className="text-[1rem] text-brand-text/85">
               Need help? Call/Text{" "}
               <a href="tel:+13067005599" className="font-semibold text-brand-text underline">
                 +1 306 700 5599
@@ -849,7 +862,7 @@ export default function BookingPage() {
           </header>
 
           <div className="rounded-2xl border border-brand-text/25 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-brand-text/60">
+            <div className="flex items-center justify-between text-[0.86rem] uppercase tracking-[0.18em] text-brand-text/80">
               <span>
                 Step {step + 1} of {steps.length}
               </span>
@@ -859,18 +872,34 @@ export default function BookingPage() {
               className="mt-3 grid gap-2"
               style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
             >
-              {steps.map((label, index) => (
-                <div key={label} className="space-y-1">
-                  <div
-                    className={`h-2 rounded-full ${
-                      index <= step ? "bg-brand-text" : "bg-brand-text/25"
-                    }`}
-                  />
-                  <p className="truncate text-[10px] uppercase tracking-[0.12em] text-brand-text/60">
-                    {label}
-                  </p>
-                </div>
-              ))}
+              {steps.map((label, index) => {
+                const isClickable = index <= step;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      if (isClickable) setStep(index);
+                    }}
+                    disabled={!isClickable}
+                    aria-current={index === step ? "step" : undefined}
+                    className={`space-y-1 text-left ${isClickable ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+                  >
+                    <div
+                      className={`h-2 rounded-full ${
+                        index <= step ? "bg-brand-text" : "bg-brand-text/25"
+                      }`}
+                    />
+                    <p
+                      className={`truncate text-[11.5px] uppercase tracking-[0.12em] ${
+                        index <= step ? "text-brand-text/85" : "text-brand-text/80"
+                      }`}
+                    >
+                      {label}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
             <div className="mt-3 h-2 w-full rounded-full bg-brand-text/10">
               <div
@@ -928,7 +957,10 @@ export default function BookingPage() {
                     }
                   >
                     <p className="text-sm uppercase tracking-[0.15em] opacity-70">Category</p>
-                    <p className="text-lg font-semibold">{category.label}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-semibold">{category.label}</p>
+                      {category.tagLabel && <ServiceTag label={category.tagLabel} />}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -951,19 +983,22 @@ export default function BookingPage() {
                       disabled={!form.category}
                     >
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                        <p className="text-base font-semibold sm:text-lg">{pkg.name}</p>
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold sm:text-lg">{pkg.name}</p>
+                          {pkg.tagLabel && <ServiceTag label={pkg.tagLabel} className="mt-2" />}
+                        </div>
                         <p className="shrink-0 whitespace-nowrap text-base font-semibold sm:text-lg">
                           {formatPrice(pkg.priceCents)}
                         </p>
                       </div>
-                      <p className="mt-1 text-sm opacity-80">{pkg.description}</p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.18em] opacity-60">
+                      <p className="mt-1 text-sm opacity-95">{pkg.description}</p>
+                      <p className="mt-2 text-[0.86rem] uppercase tracking-[0.18em] opacity-80">
                         {formatDuration(pkg.durationMins)}
                       </p>
                     </button>
                   ))}
                   {form.category === "" && (
-                    <p className="text-sm text-brand-text/70">Select a category to see pricing.</p>
+                    <p className="text-[1rem] text-brand-text/85">Select a category to see pricing.</p>
                   )}
                 </div>
               </div>
@@ -976,6 +1011,9 @@ export default function BookingPage() {
               <div className="grid gap-3">
                 {filteredAddOns.map((addon) => {
                   const selected = form.addOnIds.includes(addon.id);
+                  const showCeramicSurchargeNote =
+                    addon.id.startsWith("yxe-ceramic-fabric-protectant") ||
+                    addon.id.startsWith("yxe-ceramic-leather-plastic-protectant");
                   return (
                     <button
                       key={addon.id}
@@ -987,15 +1025,27 @@ export default function BookingPage() {
                       onClick={() => toggleAddOn(addon.id)}
                     >
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                        <p className="text-base font-semibold sm:text-lg">{addon.name}</p>
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold sm:text-lg">{addon.name}</p>
+                          {addon.tagLabel && <ServiceTag label={addon.tagLabel} className="mt-2" />}
+                        </div>
                         <p className="shrink-0 whitespace-nowrap text-base font-semibold sm:text-lg">
                           {formatPrice(addon.priceCents)}
                         </p>
                       </div>
-                      <p className="mt-1 text-sm opacity-80">{addon.description}</p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.18em] opacity-60">
-                        + {formatDuration(addon.durationMins)}
-                      </p>
+                      <p className="mt-1 text-sm opacity-95">{addon.description}</p>
+                      {showCeramicSurchargeNote && (
+                        <p
+                          className={`mt-1 text-[0.75rem] ${
+                            selected ? "text-white/90" : "text-brand-text/80"
+                          }`}
+                        >
+                          $20 up charge for Large SUV and Minivans
+                        </p>
+                      )}
+                      {addon.id === "yxe-ozonator" && (
+                        <p className="mt-2 text-[0.86rem] uppercase tracking-[0.18em] opacity-80">+1hr</p>
+                      )}
                     </button>
                   );
                 })}
@@ -1010,10 +1060,10 @@ export default function BookingPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-lg font-semibold">No add-on needed</p>
                   </div>
-                  <p className="mt-1 text-sm opacity-80">Continue without any add-ons.</p>
+                  <p className="mt-1 text-sm opacity-95">Continue without any add-ons.</p>
                 </button>
                 {filteredAddOns.length === 0 && (
-                  <p className="text-sm text-brand-text/70">No add-ons available yet.</p>
+                  <p className="text-[1rem] text-brand-text/85">No add-ons available yet.</p>
                 )}
               </div>
             </section>
@@ -1022,7 +1072,7 @@ export default function BookingPage() {
           {step === 3 && (
             <section className="space-y-4">
               <h2 className="text-lg font-semibold">Choose a time slot</h2>
-              <p className="text-sm text-brand-text/80">
+              <p className="text-[1rem] text-brand-text/85">
                 Start by selecting the vehicle you will be bringing in.
               </p>
               {slotsError && <p className="text-sm text-rose-500">{slotsError}</p>}
@@ -1040,12 +1090,12 @@ export default function BookingPage() {
                 </div>
               )}
               {!slotsLoading && slots.length === 0 && (
-                <p className="text-sm text-brand-text/70">No slots available right now.</p>
+                <p className="text-[1rem] text-brand-text/85">No slots available right now.</p>
               )}
               {!slotsLoading && slots.length > 0 && (
                 <div className="grid gap-4">
                   <div className="rounded-2xl border border-brand-text/25 bg-white p-4">
-                    <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                    <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                       Select Date
                     </label>
                     <input
@@ -1068,7 +1118,7 @@ export default function BookingPage() {
                     </p>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       {slotsForSelectedDate.length === 0 && (
-                        <p className="text-sm text-brand-text/70">
+                        <p className="text-[1rem] text-brand-text/85">
                           No times available for this date.
                         </p>
                       )}
@@ -1103,7 +1153,7 @@ export default function BookingPage() {
           {step === 4 && (
             <section className="space-y-4">
               <h2 className="text-lg font-semibold">Customer + review</h2>
-              <p className="text-sm text-brand-text/70">
+              <p className="text-[1rem] text-brand-text/85">
                 Fields marked * (required) are needed to complete booking.
               </p>
               {form.submitError && (
@@ -1113,7 +1163,7 @@ export default function BookingPage() {
               )}
               <div className="grid gap-4 rounded-2xl border border-brand-text/25 bg-white p-5">
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Full Name * (required)
                   </label>
                   <input
@@ -1145,7 +1195,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Phone * (required)
                   </label>
                   <input
@@ -1172,7 +1222,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Email * (required)
                   </label>
                   <input
@@ -1204,7 +1254,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Vehicle Year (optional)
                   </label>
                   <input
@@ -1230,7 +1280,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Make * (required)
                   </label>
                   <input
@@ -1259,7 +1309,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Model * (required)
                   </label>
                   <input
@@ -1288,7 +1338,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Trim (optional)
                   </label>
                   <input
@@ -1314,7 +1364,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Color (optional)
                   </label>
                   <input
@@ -1340,7 +1390,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Square Gift Card Number (optional)
                   </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -1399,7 +1449,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Discount Code (optional)
                   </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -1451,7 +1501,7 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="grid gap-3">
-                  <label className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Notes (optional)
                   </label>
                   <textarea
@@ -1477,18 +1527,18 @@ export default function BookingPage() {
               </div>
               <div className="rounded-2xl border border-brand-text/25 bg-white p-5 text-sm text-brand-text">
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">City</p>
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">City</p>
                   <p className="text-base font-semibold">{form.city ? cityLabel[form.city] : ""}</p>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Service</p>
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Service</p>
                   <p className="text-base font-semibold">{selectedPackage?.name}</p>
-                  <p className="text-brand-text/70">{selectedPackage?.description}</p>
+                  <p className="text-brand-text/85">{selectedPackage?.description}</p>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Add-ons</p>
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Add-ons</p>
                   {selectedAddOns.length === 0 ? (
-                    <p className="text-brand-text/70">None</p>
+                    <p className="text-brand-text/85">None</p>
                   ) : (
                     selectedAddOns.map((addon) => (
                       <p key={addon.id} className="text-base">
@@ -1498,14 +1548,14 @@ export default function BookingPage() {
                   )}
                 </div>
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Date & Time
                   </p>
                   <p className="text-base font-semibold">{form.slotLabel}</p>
                 </div>
                 {giftCardCheck.status === "valid" && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                    <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                       Gift Card
                     </p>
                     <p className="text-base font-semibold">
@@ -1515,7 +1565,7 @@ export default function BookingPage() {
                 )}
                 {discountCents > 0 && discountCheck.status === "valid" && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                    <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                       Discount Code
                     </p>
                     <p className="text-base font-semibold">
@@ -1525,12 +1575,12 @@ export default function BookingPage() {
                   </div>
                 )}
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Vehicle</p>
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Vehicle</p>
                   <p className="text-base font-semibold">
                     {form.vehicleYear} {form.vehicleMake} {form.vehicleModel}
                   </p>
                   {form.vehicleSize && (
-                    <p className="text-sm text-brand-text/70">
+                    <p className="text-[1rem] text-brand-text/85">
                       Size: {vehicleSizeLabel[form.vehicleSize]}
                     </p>
                   )}
@@ -1539,32 +1589,32 @@ export default function BookingPage() {
                 </div>
                 {form.notes && (
                   <div className="mt-4 space-y-2">
-                    <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Notes</p>
+                    <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Notes</p>
                     <p>{form.notes}</p>
                   </div>
                 )}
                 <div className="mt-6 flex items-center justify-between border-t border-brand-text/25 pt-4">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">Subtotal</p>
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">Subtotal</p>
                   <p className="text-base font-semibold text-brand-text">
                     {formatPrice(subtotalCents)}
                   </p>
                 </div>
                 {discountCents > 0 && (
                   <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.15em] text-emerald-700">Discount</p>
+                    <p className="text-[0.86rem] uppercase tracking-[0.15em] text-emerald-700">Discount</p>
                     <p className="text-base font-semibold text-emerald-700">
                       -{formatPrice(discountCents)}
                     </p>
                   </div>
                 )}
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Estimated Total
                   </p>
                   <p className="text-lg font-semibold text-brand-text">{formatPrice(totalCents)}</p>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+                  <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                     Estimated Time
                   </p>
                   <p className="text-base font-semibold text-brand-text">
@@ -1618,7 +1668,7 @@ export default function BookingPage() {
 
           {showRunningTotal && (
             <div className="flex items-center justify-between rounded-2xl border border-brand-text/25 bg-white px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.15em] text-brand-text/70">
+              <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
                 Current total
               </p>
               <p className="text-base font-semibold text-brand-text">{formatPrice(totalCents)}</p>
@@ -1629,7 +1679,7 @@ export default function BookingPage() {
             <div className="flex items-center gap-3">
               {step > 0 && (
                 <button
-                  className="flex-1 rounded-2xl border border-brand-text/25 px-4 py-3 text-sm font-semibold text-brand-text/80"
+                  className="flex-1 rounded-2xl border border-brand-text/25 px-4 py-3 text-sm font-semibold text-brand-text/85"
                   onClick={goBack}
                 >
                   Back
@@ -1657,7 +1707,7 @@ export default function BookingPage() {
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
-                className="rounded-xl border border-brand-text/25 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em]"
+                className="rounded-xl border border-brand-text/25 px-3 py-1 text-[0.86rem] font-semibold uppercase tracking-[0.08em]"
               >
                 Close
               </button>
@@ -1665,7 +1715,7 @@ export default function BookingPage() {
             <div className="mt-4 space-y-4">
               <div>
                 <p className="font-semibold">Cancellation policy</p>
-                <p className="text-brand-text/80">
+                <p className="text-brand-text/85">
                   We require 24 hours notice of a cancellation (you can cancel directly through your
                   email confirmation or call/text us at #306-700-5599). If you cancel with less than
                   24 hours notice we will require pre-payment before your next service. Pre-payment
@@ -1675,7 +1725,7 @@ export default function BookingPage() {
               </div>
               <div>
                 <p className="font-semibold">Excessively dirty</p>
-                <p className="text-brand-text/80">
+                <p className="text-brand-text/85">
                   We reserve the right to charge extra if there is excessive pet hair, or if the
                   vehicle is excessively dirty. Not sure if you fit this category? Check out our
                   blog post (with photos) here:{" "}
@@ -1692,7 +1742,7 @@ export default function BookingPage() {
               </div>
               <div>
                 <p className="font-semibold">Late Arrival</p>
-                <p className="text-brand-text/80">
+                <p className="text-brand-text/85">
                   Please know that due to the high volume of clientele we see on a daily basis that
                   if you are late for your appointment we may not be able to complete everything
                   listed in the service you chose. You can easily cancel or rebook your appointment
@@ -1703,7 +1753,7 @@ export default function BookingPage() {
                 </p>
               </div>
               <div>
-                <p className="text-brand-text/80">
+                <p className="text-brand-text/85">
                   If you would like the interior of your centre console and glovebox cleaned please
                   completely empty these areas. They will not be cleaned unless they are completely
                   empty. We do not want to throw out anything that is important and generally this
@@ -1714,7 +1764,7 @@ export default function BookingPage() {
               </div>
               <div>
                 <p className="font-semibold">Parking</p>
-                <p className="text-brand-text/80">
+                <p className="text-brand-text/85">
                   You are responsible for the parking charges incurred while in the Midtown parking
                   lot. Please make sure you hang on to your parking ticket.
                 </p>
