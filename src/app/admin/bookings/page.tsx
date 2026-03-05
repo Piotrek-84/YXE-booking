@@ -103,6 +103,25 @@ type SlotBlock = {
   endAt: string;
 };
 
+type StaffEmployee = {
+  id: string;
+  fullName: string;
+  scheduleName?: string | null;
+  role: string;
+  isActive: boolean;
+};
+
+type StaffShift = {
+  id: string;
+  employeeId: string;
+  locationCode: string;
+  shiftDate: string;
+  startTime: string;
+  endTime: string;
+  isDayOff: boolean;
+  employee: StaffEmployee;
+};
+
 function statusBadge(status: string) {
   switch (status) {
     case "REQUESTED":
@@ -245,6 +264,25 @@ function toInputDateTime(dateValue?: string | null) {
   return local.toISOString().slice(0, 16);
 }
 
+function dateKeyFromIso(dateValue: string) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function fromDateKey(dateKey: string) {
+  return new Date(`${dateKey}T00:00:00`);
+}
+
+function getEmployeeScheduleLabel(employee: Pick<StaffEmployee, "fullName" | "scheduleName">) {
+  const scheduleName = employee.scheduleName?.trim();
+  return scheduleName ? scheduleName : employee.fullName;
+}
+
+function formatDetailerCount(count: number) {
+  return `${count} detailer${count === 1 ? "" : "s"}`;
+}
+
 function getAuditChanges(details: unknown) {
   if (!details || typeof details !== "object" || !("changes" in details)) return [];
   const changesRaw = (details as { changes?: unknown }).changes;
@@ -303,6 +341,11 @@ export default function AdminBookingsPage() {
     return now;
   });
   const [slotBlocks, setSlotBlocks] = useState<SlotBlock[]>([]);
+  const [staffEmployees, setStaffEmployees] = useState<StaffEmployee[]>([]);
+  const [staffShifts, setStaffShifts] = useState<StaffShift[]>([]);
+  const [staffingLoading, setStaffingLoading] = useState(false);
+  const [staffingSaving, setStaffingSaving] = useState(false);
+  const [selectedDayKey, setSelectedDayKey] = useState(() => new Date().toISOString().slice(0, 10));
   const [metricsMonth, setMetricsMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [lostRevenue, setLostRevenue] = useState<{
     noShowCount: number;
@@ -320,6 +363,7 @@ export default function AdminBookingsPage() {
 
   const [toast, setToast] = useState<ToastState>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const dayEditorRef = useRef<HTMLDivElement | null>(null);
 
   const isDev = process.env.NODE_ENV !== "production";
 
@@ -689,6 +733,23 @@ export default function AdminBookingsPage() {
     return days;
   }, [calendarRange]);
 
+  useEffect(() => {
+    if (calendarMode === "day") {
+      setSelectedDayKey(formatDateKey(calendarCursor));
+      return;
+    }
+
+    const selected = fromDateKey(selectedDayKey);
+    if (Number.isNaN(selected.getTime())) {
+      setSelectedDayKey(formatDateKey(calendarRange.from));
+      return;
+    }
+
+    if (selected < calendarRange.from || selected > calendarRange.to) {
+      setSelectedDayKey(formatDateKey(calendarRange.from));
+    }
+  }, [calendarCursor, calendarMode, calendarRange.from, calendarRange.to, selectedDayKey]);
+
   const calendarGroups = useMemo(() => {
     return calendarDays.map((day) =>
       bookings.filter((booking) => {
@@ -698,7 +759,242 @@ export default function AdminBookingsPage() {
     );
   }, [bookings, calendarDays]);
 
+  const canManageStaffing = view === "calendar" && (location === "YXE" || location === "YYC");
+
+  const loadStaffing = useCallback(async () => {
+    if (!canManageStaffing) {
+      setStaffEmployees([]);
+      setStaffShifts([]);
+      return;
+    }
+
+    setStaffingLoading(true);
+    try {
+      const shiftParams = new URLSearchParams({
+        locationCode: location,
+        dateFrom: formatDateKey(calendarRange.from),
+        dateTo: formatDateKey(calendarRange.to),
+      });
+
+      const [employeesResponse, shiftsResponse] = await Promise.all([
+        fetch("/api/admin/employees?scope=all", { credentials: "include" }),
+        fetch(`/api/admin/schedule/shifts?${shiftParams.toString()}`, {
+          credentials: "include",
+        }),
+      ]);
+
+      if (
+        employeesResponse.status === 401 ||
+        employeesResponse.status === 403 ||
+        shiftsResponse.status === 401 ||
+        shiftsResponse.status === 403
+      ) {
+        router.push("/admin/login?next=/admin/bookings");
+        return;
+      }
+
+      if (!employeesResponse.ok || !shiftsResponse.ok) {
+        const employeesPayload = await employeesResponse.json().catch(() => ({}));
+        const shiftsPayload = await shiftsResponse.json().catch(() => ({}));
+        const message =
+          employeesPayload?.error ||
+          shiftsPayload?.error ||
+          "Could not load staff schedule for the calendar.";
+        throw new Error(message);
+      }
+
+      const employeesPayload = await employeesResponse.json().catch(() => ({}));
+      const shiftsPayload = await shiftsResponse.json().catch(() => ({}));
+      setStaffEmployees(Array.isArray(employeesPayload?.employees) ? employeesPayload.employees : []);
+      setStaffShifts(Array.isArray(shiftsPayload?.shifts) ? shiftsPayload.shifts : []);
+    } catch (error) {
+      setStaffEmployees([]);
+      setStaffShifts([]);
+      const message =
+        error instanceof Error ? error.message : "Could not load staff schedule for the calendar.";
+      showToast("error", message);
+    } finally {
+      setStaffingLoading(false);
+    }
+  }, [calendarRange.from, calendarRange.to, canManageStaffing, location, router, showToast]);
+
+  useEffect(() => {
+    void loadStaffing();
+  }, [loadStaffing]);
+
+  const staffShiftsByDate = useMemo(() => {
+    const grouped = new Map<string, StaffShift[]>();
+    for (const shift of staffShifts) {
+      const dateKey = dateKeyFromIso(shift.shiftDate);
+      if (!dateKey) continue;
+      const current = grouped.get(dateKey) || [];
+      current.push(shift);
+      grouped.set(dateKey, current);
+    }
+    return grouped;
+  }, [staffShifts]);
+
+  const detailerCountByDate = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const [dayKey, dayShifts] of staffShiftsByDate.entries()) {
+      const activeDetailerIds = new Set(
+        dayShifts
+          .filter(
+            (shift) =>
+              !shift.isDayOff && shift.employee.isActive && shift.employee.role === "DETAILER"
+          )
+          .map((shift) => shift.employeeId)
+      );
+      counts.set(dayKey, activeDetailerIds.size);
+    }
+    return counts;
+  }, [staffShiftsByDate]);
+
+  const selectedDayShifts = useMemo(
+    () =>
+      [...(staffShiftsByDate.get(selectedDayKey) || [])].sort((a, b) =>
+        a.startTime.localeCompare(b.startTime)
+      ),
+    [selectedDayKey, staffShiftsByDate]
+  );
+
+  const activeDetailers = useMemo(
+    () =>
+      staffEmployees
+        .filter((employee) => employee.isActive && employee.role === "DETAILER")
+        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [staffEmployees]
+  );
+
+  const selectedDayDetailerCount = detailerCountByDate.get(selectedDayKey) ?? 0;
+
+  const selectedDayDate = useMemo(() => fromDateKey(selectedDayKey), [selectedDayKey]);
+
+  const selectedDayBookings = useMemo(() => {
+    return bookings
+      .filter((booking) => {
+        const startAt = booking.bookingStartDateTime || booking.requestedDate;
+        return sameDay(new Date(startAt), selectedDayDate);
+      })
+      .sort((a, b) => {
+        const aStart = new Date(a.bookingStartDateTime || a.requestedDate).getTime();
+        const bStart = new Date(b.bookingStartDateTime || b.requestedDate).getTime();
+        return aStart - bStart;
+      });
+  }, [bookings, selectedDayDate]);
+
+  const openDayEditor = (dateKey: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+    setSelectedDayKey(dateKey);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        dayEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
+
   const daySlots = useMemo(() => ["09:00", "11:00", "13:30", "15:30"], []);
+
+  const clearEmployeeAssignmentsForDay = useCallback(
+    async (employeeId: string, dateKey: string) => {
+      const employeeDayShifts = (staffShiftsByDate.get(dateKey) || []).filter(
+        (shift) => shift.employeeId === employeeId
+      );
+      if (employeeDayShifts.length === 0) {
+        return { ok: true as const, removedCount: 0, warning: "" };
+      }
+
+      let warning = "";
+      for (const shift of employeeDayShifts) {
+        const response = await fetch(
+          `/api/admin/schedule/shifts?id=${encodeURIComponent(shift.id)}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+          }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401 || response.status === 403) {
+          router.push("/admin/login?next=/admin/bookings");
+          return { ok: false as const, removedCount: 0, warning: "", error: "Unauthorized." };
+        }
+        if (!response.ok) {
+          return {
+            ok: false as const,
+            removedCount: 0,
+            warning: "",
+            error: data?.error || "Could not remove employee from this day.",
+          };
+        }
+        if (!warning && data?.warning) {
+          warning = data.warning;
+        }
+      }
+
+      return { ok: true as const, removedCount: employeeDayShifts.length, warning };
+    },
+    [router, staffShiftsByDate]
+  );
+
+  const addDetailerToSelectedDay = async (employeeId: string) => {
+    if (!canManageStaffing) {
+      showToast("error", "Pick YXE or YYC first");
+      return;
+    }
+    setStaffingSaving(true);
+    const cleared = await clearEmployeeAssignmentsForDay(employeeId, selectedDayKey);
+    if (!cleared.ok) {
+      setStaffingSaving(false);
+      showToast("error", cleared.error);
+      return;
+    }
+
+    const response = await fetch("/api/admin/schedule/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        employeeId,
+        locationCode: location,
+        shiftDate: selectedDayKey,
+        startTime: "09:00",
+        endTime: "17:00",
+        isDayOff: false,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      setStaffingSaving(false);
+      router.push("/admin/login?next=/admin/bookings");
+      return;
+    }
+    if (!response.ok) {
+      setStaffingSaving(false);
+      showToast("error", data?.error || "Could not add staff for this day");
+      return;
+    }
+
+    await Promise.all([loadBookings(true), loadStaffing()]);
+    setStaffingSaving(false);
+    showToast("success", data?.warning || "Staff added for selected day");
+  };
+
+  const removeDetailerFromSelectedDay = async (employeeId: string) => {
+    setStaffingSaving(true);
+    const cleared = await clearEmployeeAssignmentsForDay(employeeId, selectedDayKey);
+    if (!cleared.ok) {
+      setStaffingSaving(false);
+      showToast("error", cleared.error);
+      return;
+    }
+    await Promise.all([loadBookings(true), loadStaffing()]);
+    setStaffingSaving(false);
+    if (cleared.removedCount === 0) {
+      showToast("success", "This detailer was not assigned on that day");
+      return;
+    }
+    showToast("success", cleared.warning || "Staff removed from selected day");
+  };
 
   const activeChips = useMemo(() => {
     const chips: { key: string; label: string; clear: () => void }[] = [];
@@ -1938,13 +2234,21 @@ export default function AdminBookingsPage() {
           {calendarMode === "day" && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-slate-300">
-                  {calendarCursor.toLocaleDateString("en-CA", {
-                    weekday: "long",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </p>
+                <div>
+                  <p className="text-sm text-slate-300">
+                    {calendarCursor.toLocaleDateString("en-CA", {
+                      weekday: "long",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDetailerCount(
+                      detailerCountByDate.get(formatDateKey(calendarCursor)) ?? 0
+                    )}{" "}
+                    working
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => void blockWholeDay()}
@@ -2084,102 +2388,286 @@ export default function AdminBookingsPage() {
 
           {calendarMode === "week" && (
             <div className="grid gap-3 md:grid-cols-7">
-              {calendarDays.map((day, index) => (
-                <div
-                  key={day.toISOString()}
-                  className="flex min-h-[180px] flex-col rounded-2xl border border-slate-800 bg-slate-900 p-3"
-                >
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    {day.toLocaleDateString("en-CA", { weekday: "short" })}
-                  </p>
-                  <p className="text-sm font-semibold text-slate-100">
-                    {day.toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
-                  </p>
-                  <div className="mt-3 flex flex-1 flex-col gap-2">
-                    {calendarGroups[index]?.length ? (
-                      calendarGroups[index].map((booking) => (
-                        <button
-                          key={booking.id}
-                          onClick={() => setDrawerBookingId(booking.id)}
-                          className={`rounded-xl border px-3 py-2 text-left text-xs text-slate-100 transition hover:border-slate-500 ${getVehicleSizeColor(
-                            booking.vehicle.size
-                          )}`}
-                        >
-                          <p className="font-semibold">
-                            {booking.customer.fullName}
-                            {booking.blockedCustomer?.isActive && (
-                              <span className="ml-1 text-rose-300" title="Blocked client">
-                                ⛔
-                              </span>
-                            )}
-                            {booking.status === "IN_PROGRESS" && (
-                              <span className="ml-1 text-yellow-300" title="In progress">
-                                ★
-                              </span>
-                            )}
+              {calendarDays.map((day, index) => {
+                const dayKey = formatDateKey(day);
+                const dayDetailerCount = detailerCountByDate.get(dayKey) ?? 0;
+                const isSelected = dayKey === selectedDayKey;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`relative flex min-h-[180px] cursor-pointer flex-col rounded-2xl border bg-slate-900 p-3 ${
+                      isSelected ? "border-slate-200 ring-1 ring-slate-300" : "border-slate-800"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openDayEditor(dayKey)}
+                      aria-label={`Edit staffing for ${day.toLocaleDateString("en-CA", {
+                        month: "short",
+                        day: "numeric",
+                      })}`}
+                      className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-200"
+                    />
+                    <div className="pointer-events-none relative z-10">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                            {day.toLocaleDateString("en-CA", { weekday: "short" })}
                           </p>
-                          <p className="text-slate-300">
-                            {booking.requestedWindow} · {booking.service.name}
+                          <p className="text-sm font-semibold text-slate-100">
+                            {day.toLocaleDateString("en-CA", { month: "short", day: "numeric" })}
                           </p>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-600">No bookings</p>
-                    )}
+                        </div>
+                        <p className="rounded-full border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">
+                          {formatDetailerCount(dayDetailerCount)}
+                        </p>
+                      </div>
+                      <div className="mt-3 flex flex-1 flex-col gap-2">
+                        {calendarGroups[index]?.length ? (
+                          calendarGroups[index].map((booking) => (
+                            <button
+                              key={booking.id}
+                              onClick={() => setDrawerBookingId(booking.id)}
+                              className={`pointer-events-auto rounded-xl border px-3 py-2 text-left text-xs text-slate-100 transition hover:border-slate-500 ${getVehicleSizeColor(
+                                booking.vehicle.size
+                              )}`}
+                            >
+                              <p className="font-semibold">
+                                {booking.customer.fullName}
+                                {booking.blockedCustomer?.isActive && (
+                                  <span className="ml-1 text-rose-300" title="Blocked client">
+                                    ⛔
+                                  </span>
+                                )}
+                                {booking.status === "IN_PROGRESS" && (
+                                  <span className="ml-1 text-yellow-300" title="In progress">
+                                    ★
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-slate-300">
+                                {booking.requestedWindow} · {booking.service.name}
+                              </p>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-600">No bookings</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {calendarMode === "month" && (
             <div className="grid gap-3 md:grid-cols-7">
-              {calendarDays.map((day, index) => (
-                <div
-                  key={day.toISOString()}
-                  className="flex min-h-[140px] flex-col rounded-2xl border border-slate-800 bg-slate-900 p-3"
-                >
-                  <p className="text-sm font-semibold text-slate-100">
-                    {day.toLocaleDateString("en-CA", { day: "numeric" })}
-                  </p>
-                  <div className="mt-2 flex flex-1 flex-col gap-2">
-                    {calendarGroups[index]?.slice(0, 3).map((booking) => (
-                      <button
-                        key={booking.id}
-                        onClick={() => setDrawerBookingId(booking.id)}
-                        className={`rounded-xl border px-2 py-1 text-left text-[11px] text-slate-100 ${getVehicleSizeColor(
-                          booking.vehicle.size
-                        )}`}
-                      >
-                        <p className="truncate font-semibold">
+              {calendarDays.map((day, index) => {
+                const dayKey = formatDateKey(day);
+                const dayDetailerCount = detailerCountByDate.get(dayKey) ?? 0;
+                const isSelected = dayKey === selectedDayKey;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`relative flex min-h-[140px] cursor-pointer flex-col rounded-2xl border bg-slate-900 p-3 ${
+                      isSelected ? "border-slate-200 ring-1 ring-slate-300" : "border-slate-800"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openDayEditor(dayKey)}
+                      aria-label={`Edit staffing for ${day.toLocaleDateString("en-CA", {
+                        month: "short",
+                        day: "numeric",
+                      })}`}
+                      className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-200"
+                    />
+                    <div className="pointer-events-none relative z-10">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-100">
+                          {day.toLocaleDateString("en-CA", { day: "numeric" })}
+                        </p>
+                        <p className="rounded-full border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">
+                          {formatDetailerCount(dayDetailerCount)}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex flex-1 flex-col gap-2">
+                        {calendarGroups[index]?.slice(0, 3).map((booking) => (
+                          <button
+                            key={booking.id}
+                            onClick={() => setDrawerBookingId(booking.id)}
+                            className={`pointer-events-auto rounded-xl border px-2 py-1 text-left text-[11px] text-slate-100 ${getVehicleSizeColor(
+                              booking.vehicle.size
+                            )}`}
+                          >
+                            <p className="truncate font-semibold">
+                              {booking.customer.fullName}
+                              {booking.blockedCustomer?.isActive && (
+                                <span className="ml-1 text-rose-300" title="Blocked client">
+                                  ⛔
+                                </span>
+                              )}
+                              {booking.status === "IN_PROGRESS" && (
+                                <span className="ml-1 text-yellow-300" title="In progress">
+                                  ★
+                                </span>
+                              )}
+                            </p>
+                            <p className="truncate text-slate-300">{booking.requestedWindow}</p>
+                          </button>
+                        ))}
+                        {(calendarGroups[index]?.length ?? 0) > 3 && (
+                          <p className="text-[11px] text-slate-400">
+                            +{(calendarGroups[index]?.length ?? 0) - 3} more
+                          </p>
+                        )}
+                        {(calendarGroups[index]?.length ?? 0) === 0 && (
+                          <p className="text-xs text-slate-600">No bookings</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div
+            id="bookings-day-staffing-editor"
+            ref={dayEditorRef}
+            className="rounded-2xl border border-slate-800 bg-slate-950 p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-100">
+                  {selectedDayDate.toLocaleDateString("en-CA", {
+                    weekday: "long",
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  staffing
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Add or remove detailers for this day directly from Bookings.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatDetailerCount(selectedDayDetailerCount)} working
+                </p>
+              </div>
+              {staffingLoading && (
+                <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+                  <span className="h-3 w-3 animate-spin rounded-full border border-slate-600 border-t-slate-100" />
+                  Loading staff
+                </span>
+              )}
+            </div>
+
+            {!canManageStaffing && (
+              <p className="mt-3 text-xs text-rose-300">
+                Pick YXE or YYC in filters to manage staffing from this view.
+              </p>
+            )}
+
+            {canManageStaffing && (
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {activeDetailers.length === 0 && (
+                  <p className="text-xs text-slate-500">No active detailers found.</p>
+                )}
+                {activeDetailers.map((employee) => {
+                  const employeeShifts = selectedDayShifts.filter(
+                    (shift) => shift.employeeId === employee.id
+                  );
+                  const hasAssignment = employeeShifts.length > 0;
+                  const assignmentLabel = hasAssignment
+                    ? employeeShifts
+                        .map((shift) =>
+                          shift.isDayOff ? "DAY OFF" : `${shift.startTime}-${shift.endTime}`
+                        )
+                        .join(", ")
+                    : "Not assigned";
+                  return (
+                    <div
+                      key={`${selectedDayKey}-staff-${employee.id}`}
+                      className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs"
+                    >
+                      <p className="font-semibold text-slate-100">
+                        {getEmployeeScheduleLabel(employee)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">{assignmentLabel}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => void addDetailerToSelectedDay(employee.id)}
+                          disabled={staffingSaving || !canManageStaffing}
+                          className="rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-100 disabled:opacity-40"
+                        >
+                          Add staff
+                        </button>
+                        <button
+                          onClick={() => void removeDetailerFromSelectedDay(employee.id)}
+                          disabled={staffingSaving || !hasAssignment || !canManageStaffing}
+                          className="rounded border border-rose-700 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40"
+                        >
+                          Remove staff
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
+                  Clients on this day
+                </p>
+                <span className="text-xs text-slate-400">{selectedDayBookings.length} bookings</span>
+              </div>
+              {selectedDayBookings.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">No clients booked on this day yet.</p>
+              )}
+              {selectedDayBookings.length > 0 && (
+                <div className="mt-3 grid gap-2">
+                  {selectedDayBookings.map((booking) => (
+                    <div
+                      key={`selected-day-booking-${booking.id}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-100">
                           {booking.customer.fullName}
                           {booking.blockedCustomer?.isActive && (
                             <span className="ml-1 text-rose-300" title="Blocked client">
                               ⛔
                             </span>
                           )}
-                          {booking.status === "IN_PROGRESS" && (
-                            <span className="ml-1 text-yellow-300" title="In progress">
-                              ★
-                            </span>
-                          )}
                         </p>
-                        <p className="truncate text-slate-300">{booking.requestedWindow}</p>
-                      </button>
-                    ))}
-                    {(calendarGroups[index]?.length ?? 0) > 3 && (
-                      <p className="text-[11px] text-slate-400">
-                        +{(calendarGroups[index]?.length ?? 0) - 3} more
-                      </p>
-                    )}
-                    {(calendarGroups[index]?.length ?? 0) === 0 && (
-                      <p className="text-xs text-slate-600">No bookings</p>
-                    )}
-                  </div>
+                        <p className="text-slate-400">
+                          {booking.requestedWindow} · {booking.service.name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setDrawerBookingId(booking.id)}
+                          className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-100"
+                        >
+                          Open
+                        </button>
+                        <button
+                          onClick={() => void deleteBooking(booking.id)}
+                          disabled={deletingId === booking.id}
+                          className="rounded border border-rose-700 px-2 py-1 text-[10px] text-rose-200 disabled:opacity-40"
+                        >
+                          {deletingId === booking.id ? "Deleting..." : "Remove"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </div>
         </section>
       )}
 

@@ -186,6 +186,13 @@ function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }
 
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function validateCustomerFields(form: BookingForm) {
   const errors: FieldErrors = {};
   const normalizedPhone = normalizePhone(form.phone);
@@ -341,6 +348,13 @@ export default function BookingPage() {
   const [discountCheck, setDiscountCheck] = useState<DiscountCheckState>({ status: "idle" });
   const [clientDeviceId, setClientDeviceId] = useState("");
   const router = useRouter();
+  const minBookableDateKey = useMemo(() => toLocalDateKey(new Date()), []);
+  const maxBookableDateKey = useMemo(() => {
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() + 21);
+    return toLocalDateKey(end);
+  }, []);
 
   const filteredPackages = useMemo(() => {
     if (!form.city || !form.category || !form.vehicleSize) return [];
@@ -461,17 +475,23 @@ export default function BookingPage() {
       .then((res) => res.json())
       .then((data) => {
         if (!active) return;
-        const nextSlots: {
+        const nextSlotsRaw: {
           start: string;
           label: string;
           remainingCapacity: number;
           isAvailable: boolean;
         }[] = Array.isArray(data?.slots) ? data.slots : [];
+
+        const nextSlots = nextSlotsRaw.filter((slot) => {
+          const dateKey = String(slot.start).slice(0, 10);
+          return dateKey >= minBookableDateKey && dateKey <= maxBookableDateKey;
+        });
+
         setSlots(nextSlots);
         const availableSlotStarts = new Set(nextSlots.map((slot) => slot.start));
         const availableDates: string[] = Array.from(
           new Set(nextSlots.map((slot) => String(slot.start).slice(0, 10)))
-        );
+        ).sort();
         const firstDate = availableDates[0] || "";
 
         setSelectedSlotDate((prev) => {
@@ -498,12 +518,23 @@ export default function BookingPage() {
     return () => {
       active = false;
     };
-  }, [step, form.city, selectedPackage?.id]);
+  }, [step, form.city, selectedPackage?.id, minBookableDateKey, maxBookableDateKey]);
 
   const availableDates = useMemo(() => {
     const unique = Array.from(new Set(slots.map((slot) => String(slot.start).slice(0, 10))));
     return unique.sort();
   }, [slots]);
+
+  const datePickerMin = availableDates[0] || minBookableDateKey;
+  const datePickerMax = availableDates[availableDates.length - 1] || maxBookableDateKey;
+
+  useEffect(() => {
+    if (!selectedSlotDate) return;
+    if (selectedSlotDate >= datePickerMin && selectedSlotDate <= datePickerMax) return;
+    const fallbackDate = availableDates[0] || "";
+    setSelectedSlotDate(fallbackDate);
+    setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
+  }, [availableDates, datePickerMax, datePickerMin, selectedSlotDate]);
 
   const slotsForSelectedDate = useMemo(() => {
     if (!selectedSlotDate) return [];
@@ -1101,11 +1132,29 @@ export default function BookingPage() {
                     <input
                       type="date"
                       value={selectedSlotDate}
-                      min={availableDates[0]}
-                      max={availableDates[availableDates.length - 1]}
+                      min={datePickerMin}
+                      max={datePickerMax}
                       onChange={(event) => {
                         const nextDate = event.target.value;
-                        setSelectedSlotDate(nextDate);
+                        if (!nextDate) {
+                          setSelectedSlotDate("");
+                          setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
+                          return;
+                        }
+
+                        let normalizedDate = nextDate;
+                        if (normalizedDate < datePickerMin) normalizedDate = datePickerMin;
+                        if (normalizedDate > datePickerMax) normalizedDate = datePickerMax;
+
+                        if (!availableDates.includes(normalizedDate)) {
+                          normalizedDate =
+                            availableDates.find((dateKey) => dateKey >= normalizedDate) ||
+                            availableDates[availableDates.length - 1] ||
+                            availableDates[0] ||
+                            "";
+                        }
+
+                        setSelectedSlotDate(normalizedDate);
                         setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
                       }}
                       className="mt-2 w-full rounded-xl border border-brand-text/25 px-3 py-2 text-sm"
