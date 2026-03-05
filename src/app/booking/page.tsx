@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import CustomerLogo from "../../components/CustomerLogo";
 import ServiceTag from "../../components/ServiceTag";
 import VehicleSizeCard from "../../components/VehicleSizeCard";
 import {
@@ -193,6 +194,26 @@ function toLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function toMonthKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function fromMonthKey(value: string) {
+  const [yearRaw, monthRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return new Date();
+  }
+  return new Date(year, month - 1, 1);
+}
+
+function addMonths(date: Date, months: number) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1);
+}
+
 function validateCustomerFields(form: BookingForm) {
   const errors: FieldErrors = {};
   const normalizedPhone = normalizePhone(form.phone);
@@ -344,6 +365,7 @@ export default function BookingPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [selectedSlotDate, setSelectedSlotDate] = useState("");
+  const [calendarMonthKey, setCalendarMonthKey] = useState(() => toMonthKey(new Date()));
   const [giftCardCheck, setGiftCardCheck] = useState<GiftCardCheckState>({ status: "idle" });
   const [discountCheck, setDiscountCheck] = useState<DiscountCheckState>({ status: "idle" });
   const [clientDeviceId, setClientDeviceId] = useState("");
@@ -540,6 +562,43 @@ export default function BookingPage() {
     if (!selectedSlotDate) return [];
     return slots.filter((slot) => String(slot.start).slice(0, 10) === selectedSlotDate);
   }, [slots, selectedSlotDate]);
+
+  const availableDateSet = useMemo(() => new Set(availableDates), [availableDates]);
+  const minMonthKey = minBookableDateKey.slice(0, 7);
+  const maxMonthKey = maxBookableDateKey.slice(0, 7);
+  const canViewPrevMonth = calendarMonthKey > minMonthKey;
+  const canViewNextMonth = calendarMonthKey < maxMonthKey;
+
+  const calendarMonthLabel = useMemo(() => {
+    const monthDate = fromMonthKey(calendarMonthKey);
+    return monthDate.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+  }, [calendarMonthKey]);
+
+  const calendarCells = useMemo(() => {
+    const monthDate = fromMonthKey(calendarMonthKey);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const leadingEmptyCells = firstDayOfMonth.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: (string | null)[] = Array.from({ length: leadingEmptyCells }, () => null);
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push(toLocalDateKey(new Date(year, month, day)));
+    }
+
+    while (cells.length % 7 !== 0) {
+      cells.push(null);
+    }
+
+    return cells;
+  }, [calendarMonthKey]);
+
+  useEffect(() => {
+    if (!selectedSlotDate) return;
+    const selectedMonthKey = selectedSlotDate.slice(0, 7);
+    setCalendarMonthKey((prev) => (prev === selectedMonthKey ? prev : selectedMonthKey));
+  }, [selectedSlotDate]);
 
   const verifyGiftCard = async () => {
     const normalizedGiftCard = normalizeGiftCardNumber(form.giftCardNumber);
@@ -872,7 +931,8 @@ export default function BookingPage() {
     <main className="min-h-screen bg-brand-bg px-5 py-10">
       <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <header className="space-y-3">
+          <header className="relative space-y-3 pr-44 md:pr-64">
+            <CustomerLogo className="pointer-events-none absolute right-0 top-0" />
             <h1 className="text-3xl font-semibold text-brand-text">Book your detail</h1>
             <p className="text-brand-text/85">
               Start by selecting the vehicle you will be bringing in.
@@ -1126,39 +1186,90 @@ export default function BookingPage() {
               {!slotsLoading && slots.length > 0 && (
                 <div className="grid gap-4">
                   <div className="rounded-2xl border border-brand-text/25 bg-white p-4">
-                    <label className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
-                      Select Date
-                    </label>
-                    <input
-                      type="date"
-                      value={selectedSlotDate}
-                      min={datePickerMin}
-                      max={datePickerMax}
-                      onChange={(event) => {
-                        const nextDate = event.target.value;
-                        if (!nextDate) {
-                          setSelectedSlotDate("");
-                          setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
-                          return;
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[0.86rem] uppercase tracking-[0.15em] text-brand-text/85">
+                        Select Date
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonthKey((current) =>
+                              toMonthKey(addMonths(fromMonthKey(current), -1))
+                            )
+                          }
+                          disabled={!canViewPrevMonth}
+                          className="rounded-lg border border-brand-text/25 px-2.5 py-1 text-sm font-semibold text-brand-text disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Previous month"
+                        >
+                          Prev
+                        </button>
+                        <p className="min-w-[9.5rem] text-center text-sm font-semibold text-brand-text">
+                          {calendarMonthLabel}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonthKey((current) =>
+                              toMonthKey(addMonths(fromMonthKey(current), 1))
+                            )
+                          }
+                          disabled={!canViewNextMonth}
+                          className="rounded-lg border border-brand-text/25 px-2.5 py-1 text-sm font-semibold text-brand-text disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Next month"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[0.74rem] font-semibold uppercase tracking-[0.08em] text-brand-text/60">
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+                        <p key={label}>{label}</p>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-7 gap-1.5">
+                      {calendarCells.map((dateKey, index) => {
+                        if (!dateKey) {
+                          return <div key={`empty-${index}`} className="h-10" aria-hidden="true" />;
                         }
 
-                        let normalizedDate = nextDate;
-                        if (normalizedDate < datePickerMin) normalizedDate = datePickerMin;
-                        if (normalizedDate > datePickerMax) normalizedDate = datePickerMax;
+                        const isBeforeWindow = dateKey < minBookableDateKey;
+                        const isAfterWindow = dateKey > maxBookableDateKey;
+                        const isOutsideWindow = isBeforeWindow || isAfterWindow;
+                        const isAvailable = availableDateSet.has(dateKey);
+                        const isSelected = selectedSlotDate === dateKey;
+                        const isEnabled = !isOutsideWindow && isAvailable;
 
-                        if (!availableDates.includes(normalizedDate)) {
-                          normalizedDate =
-                            availableDates.find((dateKey) => dateKey >= normalizedDate) ||
-                            availableDates[availableDates.length - 1] ||
-                            availableDates[0] ||
-                            "";
-                        }
-
-                        setSelectedSlotDate(normalizedDate);
-                        setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
-                      }}
-                      className="mt-2 w-full rounded-xl border border-brand-text/25 px-3 py-2 text-sm"
-                    />
+                        return (
+                          <button
+                            key={dateKey}
+                            type="button"
+                            onClick={() => {
+                              if (!isEnabled) return;
+                              setSelectedSlotDate(dateKey);
+                              setForm((prev) => ({ ...prev, bookingStart: "", slotLabel: "" }));
+                            }}
+                            disabled={!isEnabled}
+                            aria-label={dateKey}
+                            className={`h-10 rounded-lg border text-sm font-semibold transition ${
+                              isSelected
+                                ? "border-brand-text bg-brand-text text-white"
+                                : isAfterWindow
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  : isBeforeWindow
+                                    ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                    : isAvailable
+                                      ? "border-brand-text/25 bg-white text-brand-text hover:border-brand-text/45"
+                                      : "cursor-not-allowed border-brand-text/20 bg-brand-bg/55 text-brand-text/45"
+                            }`}
+                          >
+                            {dateKey.slice(-2)}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-brand-text/25 bg-white p-4">

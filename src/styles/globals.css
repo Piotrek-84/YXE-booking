@@ -6,6 +6,11 @@
   color-scheme: light;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   @apply bg-brand-bg font-body font-light text-brand-text;
 }
@@ -17,4 +22,12 @@ h4,
 h5,
 h6 {
   @apply font-display font-bold text-brand-text;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
 }

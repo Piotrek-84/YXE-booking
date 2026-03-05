@@ -43,12 +43,12 @@ export default function VehicleSizeOption({
           aria-hidden="true"
         />
         <p
-          className={`text-xs uppercase tracking-[0.25em] ${selected ? "text-white/80" : "text-brand-text/60"}`}
+          className={`text-[0.86rem] uppercase tracking-[0.25em] ${selected ? "text-white/95" : "text-brand-text/80"}`}
         >
           Vehicle size
         </p>
         <p className="text-lg font-semibold">{title}</p>
-        <p className={`text-sm ${selected ? "text-white/85" : "text-brand-text/80"}`}>{subtitle}</p>
+        <p className={`text-[1rem] ${selected ? "text-white/95" : "text-brand-text/95"}`}>{subtitle}</p>
       </div>
     </button>
   );

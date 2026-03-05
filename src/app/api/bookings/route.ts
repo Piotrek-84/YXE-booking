@@ -166,7 +166,12 @@ async function resolveAddOnIds(data: z.infer<typeof createSchema>, locationId: s
           if (existing) return existing;
         }
         const byName = await prisma.addOn.findFirst({
-          where: { name: addon.name, locationId },
+          where: {
+            name: addon.name,
+            locationId,
+            priceCents: addon.priceCents,
+            durationMinutes: addon.durationMins,
+          },
         });
         if (byName) return byName;
         return prisma.addOn.create({
