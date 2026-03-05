@@ -441,9 +441,14 @@ export default function BookingPage() {
     [subtotalCents, discountCents]
   );
 
+  const addOnDurationMins = useMemo(
+    () => selectedAddOns.reduce((sum, item) => sum + item.durationMins, 0),
+    [selectedAddOns]
+  );
+
   const estimatedDurationMins = useMemo(() => {
-    return selectedPackage?.durationMins ?? 0;
-  }, [selectedPackage]);
+    return (selectedPackage?.durationMins ?? 0) + addOnDurationMins;
+  }, [selectedPackage, addOnDurationMins]);
 
   const showRunningTotal = step >= 1 && step <= 4;
 
@@ -492,7 +497,7 @@ export default function BookingPage() {
     setSlotsLoading(true);
     setSlotsError("");
     fetch(
-      `/api/availability?location=${form.city}&serviceId=${selectedPackage.id}&durationMins=${selectedPackage.durationMins}`
+      `/api/availability?location=${form.city}&serviceId=${selectedPackage.id}&durationMins=${estimatedDurationMins}`
     )
       .then((res) => res.json())
       .then((data) => {
@@ -540,7 +545,7 @@ export default function BookingPage() {
     return () => {
       active = false;
     };
-  }, [step, form.city, selectedPackage?.id, minBookableDateKey, maxBookableDateKey]);
+  }, [step, form.city, selectedPackage?.id, estimatedDurationMins, minBookableDateKey, maxBookableDateKey]);
 
   const availableDates = useMemo(() => {
     const unique = Array.from(new Set(slots.map((slot) => String(slot.start).slice(0, 10))));
@@ -931,9 +936,11 @@ export default function BookingPage() {
     <main className="min-h-screen bg-brand-bg px-5 py-10">
       <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <header className="relative space-y-3 pr-44 md:pr-64">
-            <CustomerLogo className="pointer-events-none absolute right-0 top-0" />
-            <h1 className="text-3xl font-semibold text-brand-text">Book your detail</h1>
+          <header className="space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-3xl font-semibold text-brand-text">Book your detail</h1>
+              <CustomerLogo className="pointer-events-none mt-1 shrink-0" />
+            </div>
             <p className="text-brand-text/85">
               Start by selecting the vehicle you will be bringing in.
             </p>

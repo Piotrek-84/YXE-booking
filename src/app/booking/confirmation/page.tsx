@@ -65,10 +65,16 @@ export default function ConfirmationPage() {
   return (
     <main className="min-h-screen bg-brand-bg px-5 py-12">
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
-        <header className="relative space-y-3 pr-44 md:pr-64">
-          <CustomerLogo className="pointer-events-none absolute right-0 top-0" />
-          <p className="text-xs uppercase tracking-[0.2em] text-brand-text/70">Confirmation</p>
-          <h1 className="text-3xl font-semibold text-brand-text">Your appointment is confirmed.</h1>
+        <header>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-brand-text/70">Confirmation</p>
+              <h1 className="text-3xl font-semibold text-brand-text">
+                Your appointment is confirmed.
+              </h1>
+            </div>
+            <CustomerLogo className="pointer-events-none mt-1 shrink-0" />
+          </div>
         </header>
 
         {!payload && (

@@ -12,7 +12,15 @@ html {
 }
 
 body {
-  @apply bg-brand-bg font-body font-light text-brand-text;
+  @apply bg-brand-bg font-body text-brand-text;
+  font-weight: 300;
+}
+
+@media (max-width: 768px) {
+  body {
+    /* Keep Gotham Rounded Light feel, but ~20% thicker for phone readability. */
+    font-weight: 360;
+  }
 }
 
 h1,

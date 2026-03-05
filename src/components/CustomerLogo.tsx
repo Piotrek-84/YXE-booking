@@ -6,7 +6,7 @@ type CustomerLogoProps = {
 };
 
 export default function CustomerLogo({ className = "", priority = false }: CustomerLogoProps) {
-  const classes = ["h-auto w-[150px] md:w-[200px]", className].filter(Boolean).join(" ");
+  const classes = ["h-auto w-[120px] md:w-[180px]", className].filter(Boolean).join(" ");
 
   return (
     <Image
@@ -14,7 +14,7 @@ export default function CustomerLogo({ className = "", priority = false }: Custo
       alt="YXE Quick Clean logo"
       width={1200}
       height={706}
-      sizes="(max-width: 768px) 150px, 200px"
+      sizes="(max-width: 768px) 120px, 180px"
       priority={priority}
       className={classes}
     />

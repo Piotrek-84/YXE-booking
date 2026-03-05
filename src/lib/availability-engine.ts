@@ -213,8 +213,8 @@ export async function getAvailableSlots(params: {
       })
     : null;
 
-  const durationMinutes = service?.durationMinutes ?? params.serviceDurationMinutes ?? 60;
-  const bufferMinutes = service?.bufferMinutes ?? params.serviceBufferMinutes ?? 0;
+  const durationMinutes = params.serviceDurationMinutes ?? service?.durationMinutes ?? 60;
+  const bufferMinutes = params.serviceBufferMinutes ?? service?.bufferMinutes ?? 0;
 
   const [capacityRule, locationHours, overrides, blackouts, slotBlocks, scheduledShiftDateKeys] =
     await Promise.all([
