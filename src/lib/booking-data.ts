@@ -244,7 +244,8 @@ export const addOns: AddOnOption[] = [
     id: "yxe-pet-hair",
     city: "YXE",
     name: "Pet Hair Removal",
-    description: "Extra attention for pet hair.",
+    description:
+      "Pet hair can weave deep into carpet and upholstery and often requires specialized tools to fully remove. This add-on is ideal if your vehicle regularly transports pets or has visible hair buildup.",
     priceCents: 3995,
     durationMins: 30,
   },
@@ -294,7 +295,7 @@ export const addOns: AddOnOption[] = [
     city: "YXE",
     name: "Headlight Restoration",
     description:
-      "Improve visibility and restore the polished look with cleaning, sanding, polishing, and coating.",
+      "Over time headlights can become cloudy or yellow from UV exposure. This service restores clarity, improving both the look of your vehicle and nighttime visibility while avoiding the cost of fully replacing lights.",
     priceCents: 9900,
     durationMins: 90,
   },
@@ -302,7 +303,8 @@ export const addOns: AddOnOption[] = [
     id: "yxe-headliner",
     city: "YXE",
     name: "Headliner Cleaning",
-    description: "Targeted headliner cleaning.",
+    description:
+      "The headliner (vehicle ceiling) can absorb smoke, odors, and stains over time. This gentle cleaning removes buildup while protecting the delicate fabric.",
     priceCents: 5995,
     durationMins: 30,
   },
@@ -343,7 +345,8 @@ export const addOns: AddOnOption[] = [
     id: "yxe-tire-rim",
     city: "YXE",
     name: "Tire and Rim Detail",
-    description: "Mechanical and chemical cleaning with iron removal.",
+    description:
+      "Brake dust and road grime can build up quickly on wheels. This add-on provides a deep chemical and mechanical clean so your tires and rims look as sharp as the rest of your vehicle.",
     priceCents: 4995,
     durationMins: 30,
   },

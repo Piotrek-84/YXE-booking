@@ -441,14 +441,14 @@ export default function BookingPage() {
     [subtotalCents, discountCents]
   );
 
-  const addOnDurationMins = useMemo(
-    () => selectedAddOns.reduce((sum, item) => sum + item.durationMins, 0),
+  const ozonatorExtraMins = useMemo(
+    () => selectedAddOns.find((item) => item.id === "yxe-ozonator")?.durationMins ?? 0,
     [selectedAddOns]
   );
 
   const estimatedDurationMins = useMemo(() => {
-    return (selectedPackage?.durationMins ?? 0) + addOnDurationMins;
-  }, [selectedPackage, addOnDurationMins]);
+    return (selectedPackage?.durationMins ?? 0) + ozonatorExtraMins;
+  }, [selectedPackage, ozonatorExtraMins]);
 
   const showRunningTotal = step >= 1 && step <= 4;
 
@@ -942,7 +942,7 @@ export default function BookingPage() {
               <CustomerLogo className="pointer-events-none mt-1 shrink-0" />
             </div>
             <p className="text-brand-text/85">
-              Start by selecting the vehicle you will be bringing in.
+              Start by choosing the vehicle you'll bring in for service.
             </p>
             <p className="text-[1rem] text-brand-text/85">
               Need help? Call/Text{" "}
@@ -1171,7 +1171,7 @@ export default function BookingPage() {
             <section className="space-y-4">
               <h2 className="text-lg font-semibold">Choose a time slot</h2>
               <p className="text-[1rem] text-brand-text/85">
-                Start by selecting the vehicle you will be bringing in.
+                Select the date and time that work best for your schedule.
               </p>
               {slotsError && <p className="text-sm text-rose-500">{slotsError}</p>}
               {slotsLoading && (
